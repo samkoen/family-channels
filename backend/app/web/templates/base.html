@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ dir }}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Family Channels{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Heebo:wght@400;500;600;700&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/parent.css" />
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <header class="top">
+    <a class="brand brand-mark" href="/" dir="ltr">Family Channels</a>
+    <nav class="lang-nav" aria-label="Language">
+      <a href="/lang/fr" class="{% if lang == 'fr' %}is-active{% endif %}" hreflang="fr" lang="fr">FR</a>
+      <a href="/lang/en" class="{% if lang == 'en' %}is-active{% endif %}" hreflang="en" lang="en">EN</a>
+      <a href="/lang/he" class="{% if lang == 'he' %}is-active{% endif %}" hreflang="he" lang="he">HE</a>
+      {% block nav %}{% endblock %}
+    </nav>
+  </header>
+  {% block body %}
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+  {% endblock %}
+</body>
+</html>

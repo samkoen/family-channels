@@ -1,0 +1,62 @@
+{% extends "child_base.html" %}
+{% block title %}{{ t.watch_title }}{% endblock %}
+{% block content %}
+<main class="wrap">
+  <section class="panel player-panel">
+    <a class="back" href="/watch/channels/{{ channel_id }}">{{ t.back_videos }}</a>
+    <p class="quota-live" id="quota-live" data-remaining="{{ quota.minutes_remaining }}">
+      {{ t.min_left.format(n=quota.minutes_remaining) }}
+    </p>
+    <div class="player" dir="ltr" id="player-wrap">
+      <iframe
+        id="yt-frame"
+        src="https://www.youtube-nocookie.com/embed/{{ video_id }}?rel=0&modestbranding=1"
+        title="video"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin"
+      ></iframe>
+    </div>
+  </section>
+</main>
+<script>
+(function () {
+  var label = document.getElementById("quota-live");
+  var template = {{ t.min_left|tojson }};
+  var homeUrl = "/watch/home";
+
+  function renderRemaining(n) {
+    if (!label) return;
+    label.textContent = String(template).split("{n}").join(String(n));
+    label.dataset.remaining = String(n);
+  }
+
+  function stopPlayback() {
+    var frame = document.getElementById("yt-frame");
+    if (frame) frame.remove();
+    window.location.href = homeUrl;
+  }
+
+  async function tick() {
+    try {
+      var res = await fetch("/watch/heartbeat.json", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" },
+      });
+      var data = await res.json();
+      if (!data.can_watch) {
+        stopPlayback();
+        return;
+      }
+      renderRemaining(data.minutes_remaining);
+    } catch (e) {
+      // ignore transient network errors
+    }
+  }
+
+  // Already charged 1 min on page load; next ticks every 60s while page is open.
+  setInterval(tick, 60000);
+})();
+</script>
+{% endblock %}

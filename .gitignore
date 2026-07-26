@@ -1,0 +1,55 @@
+# Secrets / env
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!**/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+.coverage
+htmlcov/
+backend/.venv/
+
+# Local databases / data
+*.db
+*.sqlite3
+backend/ytfamily.db
+pgdata/
+
+# Logs / OS / IDE
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+.cursor/
+
+# Android
+android/.gradle/
+android/**/build/
+android/local.properties
+android/.cxx/
+android/*.iml
+android/captures/
+android/.externalNativeBuild/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Misc
+dist/
+build/
+tmp/
+temp/

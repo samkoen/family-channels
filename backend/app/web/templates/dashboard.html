@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ t.dash_title }}{% endblock %}
+{% block nav %}
+<form method="post" action="/logout" class="inline">
+  <button type="submit" class="linkish">{{ t.logout }}</button>
+</form>
+{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="dash-intro">
+    <div>
+      <h1>{{ t.dash_h1 }}</h1>
+      <p class="muted">{{ t.dash_lede }}</p>
+    </div>
+    <span class="meta-chip"><span>{{ t.code_chip }}</span> <bdi dir="ltr">{{ family_code }}</bdi></span>
+  </div>
+  {% if error == 'channel' %}
+  <p class="error">{{ t.channel_error }}</p>
+  {% endif %}
+</section>
+
+<section class="panel flat">
+  <h2>{{ t.add_profile }}</h2>
+  <form method="post" action="/children" class="row">
+    <label>{{ t.name }}
+      <input name="name" placeholder="{{ t.name_ph }}" required />
+    </label>
+    <label>{{ t.daily_minutes }}
+      <input type="number" name="daily_limit_minutes" value="60" min="1" max="720" dir="ltr" />
+    </label>
+    <button type="submit">{{ t.add }}</button>
+  </form>
+</section>
+
+{% for child in children %}
+<section class="panel {% if selected_child == child.id %}focus{% endif %}">
+  <div class="child-title">
+    <div class="child-avatar" style="background: {{ child.avatar_color|default('#4A5568') }}">{{ child.name[:1]|upper }}</div>
+    <h2>{{ child.name }}</h2>
+  </div>
+  <form method="post" action="/children/{{ child.id }}/limit" class="row">
+    <label>{{ t.daily_minutes }}
+      <input type="number" name="daily_limit_minutes" value="{{ child.daily_limit_minutes }}" min="1" max="720" dir="ltr" />
+    </label>
+    <button type="submit" class="secondary">{{ t.save_limit }}</button>
+  </form>
+
+  <h3>{{ t.approved_channels }}</h3>
+  <ul class="list">
+    {% for ch in channels_by_child[child.id] %}
+    <li class="channel-row">
+      <div class="channel-main">
+        <span class="channel-title">{{ ch.title }}</span>
+        {% set ch_filters = filters_by_channel.get(ch.id, []) %}
+        {% if ch_filters %}
+        <div class="channel-filters" aria-label="{{ t.filters }}">
+          {% for f in ch_filters %}
+          <span class="filter-chip">{{ f.pattern }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted channel-filters-empty">{{ t.no_filters }}</p>
+        {% endif %}
+      </div>
+      <span class="channel-actions">
+        <a class="button secondary compact" href="/channels/{{ ch.id }}/edit">{{ t.edit }}</a>
+        <form method="post" action="/channels/{{ ch.id }}/delete" class="inline">
+          <button type="submit" class="danger">{{ t.remove }}</button>
+        </form>
+      </span>
+    </li>
+    {% else %}
+    <li class="muted">{{ t.no_channels_dash }}</li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="/children/{{ child.id }}/channels" class="row">
+    <label style="flex:1; min-width:14rem">{{ t.channel_input }}
+      <input name="channel_input" placeholder="https://youtube.com/@..." required dir="ltr" />
+    </label>
+    <button type="submit">{{ t.add_channel }}</button>
+  </form>
+</section>
+{% else %}
+<section class="panel flat">
+  <p class="muted">{{ t.add_child_hint }}</p>
+</section>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "child_base.html" %}
+{% block title %}{{ t.videos_title }}{% endblock %}
+{% block content %}
+<main class="wrap">
+  <section class="panel">
+    <a class="back" href="/watch/home">{{ t.channels }}</a>
+    <h1>{{ channel.title if channel else '' }}</h1>
+    <form method="get" action="/watch/channels/{{ channel_id }}" class="search">
+      <input
+        type="search"
+        name="q"
+        value="{{ q }}"
+        placeholder="{{ t.search_ph }}"
+      />
+      <button type="submit">{{ t.search }}</button>
+      {% if q %}
+      <a class="clear" href="/watch/channels/{{ channel_id }}">{{ t.clear_search }}</a>
+      {% endif %}
+    </form>
+    <ul class="cards">
+      {% for v in videos %}
+      <li>
+        <a href="/watch/play/{{ channel_id }}/{{ v.video_id }}">
+          {% if v.thumbnail_url %}<img class="thumb-wide" src="{{ v.thumbnail_url }}" alt="" />{% endif %}
+          <span>{{ v.title }}</span>
+        </a>
+      </li>
+      {% else %}
+      <li class="muted">
+        {% if q %}{{ t.no_videos_found }}{% else %}{{ t.no_videos }}{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</main>
+{% endblock %}

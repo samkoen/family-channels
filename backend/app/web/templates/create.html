@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ t.create_title }}{% endblock %}
+{% block body_class %}is-auth{% endblock %}
+{% block body %}
+<main class="auth-shell">
+  <section class="auth-hero">
+    <p class="brand-hero" dir="ltr">Family Channels</p>
+    <p class="lede">{{ t.create_lede }}</p>
+    <div class="panel flat">
+      <h1>{{ t.create_h1 }}</h1>
+      {% if error %}
+      <p class="error">
+        {% if error == 'pin_mismatch' %}{{ t.pin_mismatch }}
+        {% else %}{{ t.invalid_pin }}{% endif %}
+      </p>
+      {% endif %}
+      <form method="post" action="/create" class="stack">
+        <label>{{ t.pin }}
+          <input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4,6}" required autocomplete="new-password" dir="ltr" />
+        </label>
+        <label>{{ t.pin_confirm }}
+          <input type="password" name="pin_confirm" inputmode="numeric" pattern="[0-9]{4,6}" required autocomplete="new-password" dir="ltr" />
+        </label>
+        <div class="form-actions">
+          <button type="submit">{{ t.create_submit }}</button>
+        </div>
+      </form>
+      <p class="auth-footer"><a href="/login">{{ t.already_family }}</a></p>
+    </div>
+  </section>
+</main>
+{% endblock %}

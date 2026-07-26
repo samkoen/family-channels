@@ -1,0 +1,43 @@
+{% extends "child_base.html" %}
+{% block title %}{{ t.channels_title }}{% endblock %}
+{% block content %}
+<main class="wrap">
+  <section class="panel">
+    <div class="row-between">
+      <h1>{{ child_name }}</h1>
+      <form method="post" action="/watch/leave"><button type="submit" class="ghost">{{ t.leave }}</button></form>
+    </div>
+    {% set pct = ((quota.minutes_remaining / quota.daily_limit_minutes * 100) if quota.daily_limit_minutes else 0)|int %}
+    {% if quota.can_watch %}
+    <div class="quota">
+      <div class="quota-bar" aria-hidden="true"><span style="width: {{ pct }}%"></span></div>
+      <span>{{ t.min_left.format(n=quota.minutes_remaining) }}</span>
+    </div>
+    {% else %}
+    <div class="quota empty">
+      <div class="quota-bar" aria-hidden="true"><span></span></div>
+      <span>{{ t.time_over }}</span>
+    </div>
+    {% endif %}
+    <ul class="cards">
+      {% for ch in channels %}
+      <li>
+        {% if quota.can_watch %}
+        <a href="/watch/channels/{{ ch.id }}">
+          {% if ch.thumbnail_url %}<img src="{{ ch.thumbnail_url }}" alt="" />{% endif %}
+          <span>{{ ch.title }}</span>
+        </a>
+        {% else %}
+        <div class="disabled">
+          {% if ch.thumbnail_url %}<img src="{{ ch.thumbnail_url }}" alt="" />{% endif %}
+          <span>{{ ch.title }}</span>
+        </div>
+        {% endif %}
+      </li>
+      {% else %}
+      <li class="muted">{{ t.no_channels }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+</main>
+{% endblock %}

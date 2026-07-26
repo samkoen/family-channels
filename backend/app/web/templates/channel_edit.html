@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ t.edit_channel_title }}{% endblock %}
+{% block nav %}
+<form method="post" action="/logout" class="inline">
+  <button type="submit" class="linkish">{{ t.logout }}</button>
+</form>
+{% endblock %}
+{% block content %}
+<p class="page-back"><a href="/dashboard?child={{ child.id }}">{{ t.back_dashboard }}</a></p>
+
+<section class="panel">
+  <h1>{{ t.edit_channel }}</h1>
+  <p class="channel-edit-name">{{ channel.title }}</p>
+  <p class="muted">{{ t.edit_channel_for }} {{ child.name }}</p>
+  {% if error == 'filter' %}
+  <p class="error">{{ t.filter_error }}</p>
+  {% endif %}
+</section>
+
+<section class="panel flat">
+  <h2>{{ t.filters }}</h2>
+  <p class="muted">{{ t.filters_hint }}</p>
+  <ul class="list filter-list">
+    {% for f in filters %}
+    <li>
+      <span class="filter-chip">{{ f.pattern }}</span>
+      <form method="post" action="/filters/{{ f.id }}/delete" class="inline">
+        <button type="submit" class="danger">{{ t.remove }}</button>
+      </form>
+    </li>
+    {% else %}
+    <li class="muted">{{ t.no_filters }}</li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="/channels/{{ channel.id }}/filters" class="row filter-form">
+    <label style="flex:1; min-width:12rem">{{ t.add_filter }}
+      <input name="pattern" placeholder="{{ t.filter_ph }}" required maxlength="120" autofocus />
+    </label>
+    <button type="submit">{{ t.add_filter }}</button>
+  </form>
+</section>
+{% endblock %}

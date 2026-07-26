@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ t.created_title }}{% endblock %}
+{% block body_class %}is-auth{% endblock %}
+{% block body %}
+<main class="auth-shell">
+  <section class="auth-hero">
+    <p class="brand-hero" dir="ltr">Family Channels</p>
+    <p class="lede">{{ t.created_lede }}</p>
+    <div class="panel flat">
+      <h1>{{ t.family_code_label }}</h1>
+      <div class="code-block">
+        <p class="code" dir="ltr">{{ code }}</p>
+      </div>
+      <a class="button" href="/dashboard">{{ t.open_dashboard }}</a>
+    </div>
+  </section>
+</main>
+{% endblock %}

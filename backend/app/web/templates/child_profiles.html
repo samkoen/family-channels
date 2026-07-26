@@ -1,0 +1,23 @@
+{% extends "child_base.html" %}
+{% block title %}{{ t.profiles_title }}{% endblock %}
+{% block content %}
+<main class="shell">
+  <section class="panel auth">
+    <h1>{{ t.who_watching }}</h1>
+    <p class="lede">{{ t.pick_profile }}</p>
+    <div class="stack">
+      {% for child in children %}
+      <form method="post" action="/watch/select">
+        <input type="hidden" name="child_id" value="{{ child.id }}" />
+        <button type="submit" class="profile">
+          <span class="avatar" style="background: {{ child.avatar_color|default('#4A5568') }}">{{ child.name[:1]|upper }}</span>
+          {{ child.name }}
+        </button>
+      </form>
+      {% else %}
+      <p class="muted">{{ t.no_profiles }}</p>
+      {% endfor %}
+    </div>
+  </section>
+</main>
+{% endblock %}

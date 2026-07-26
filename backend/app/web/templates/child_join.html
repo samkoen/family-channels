@@ -1,0 +1,22 @@
+{% extends "child_base.html" %}
+{% block title %}{{ t.watch_join_title }}{% endblock %}
+{% block content %}
+<main class="shell">
+  <section class="panel auth">
+    <div class="lang-bar" aria-label="Language">
+      <a href="/lang/fr" class="{% if lang == 'fr' %}is-active{% endif %}" hreflang="fr" lang="fr">FR</a>
+      <a href="/lang/en" class="{% if lang == 'en' %}is-active{% endif %}" hreflang="en" lang="en">EN</a>
+      <a href="/lang/he" class="{% if lang == 'he' %}is-active{% endif %}" hreflang="he" lang="he">HE</a>
+    </div>
+    <p class="brand-hero" dir="ltr">Family Channels</p>
+    <p class="lede">{{ t.watch_join_lede }}</p>
+    {% if error %}
+    <p class="error">{{ t.code_not_found }}</p>
+    {% endif %}
+    <form method="post" action="/watch/join" class="stack">
+      <input name="family_code" required autocomplete="off" placeholder="AB12CD" aria-label="{{ t.family_code }}" dir="ltr" />
+      <button type="submit">{{ t.continue }}</button>
+    </form>
+  </section>
+</main>
+{% endblock %}
