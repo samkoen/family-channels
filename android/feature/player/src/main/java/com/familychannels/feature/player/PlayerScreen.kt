@@ -11,15 +11,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier.modifier
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.familychannels.ui.components.AppBackground
 import com.familychannels.ui.i18n.Strings
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 
 @Composable
@@ -75,25 +77,35 @@ private fun LockedYouTubePlayer(
             enableAutomaticInitialization = false
         }
     }
-    DisposableEffect(playerView) {
+    DisposableEffect(playerView, videoId) {
         lifecycleOwner.lifecycle.addObserver(playerView)
-        playerView.initialize(object : AbstractYouTubePlayerListener() {
-            override fun onReady(youTubePlayer: YouTubePlayer) {
-                youTubePlayer.loadVideo(videoId, 0f)
-            }
+        val options = IFramePlayerOptions.Builder()
+            .controls(1)
+            .rel(0)
+            .ivLoadPolicy(3)
+            .ccLoadPolicy(0)
+            .origin("https://${context.packageName}")
+            .build()
+        playerView.initialize(
+            object : AbstractYouTubePlayerListener() {
+                override fun onReady(youTubePlayer: YouTubePlayer) {
+                    youTubePlayer.loadVideo(videoId, 0f)
+                }
 
-            override fun onStateChange(
-                youTubePlayer: YouTubePlayer,
-                state: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState,
-            ) {
-                if (state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.ENDED) {
-                    onEnded()
+                override fun onStateChange(
+                    youTubePlayer: YouTubePlayer,
+                    state: PlayerConstants.PlayerState,
+                ) {
+                    if (state == PlayerConstants.PlayerState.ENDED) {
+                        onEnded()
+                    }
+                    if (state == PlayerConstants.PlayerState.PLAYING) {
+                        onPlayingTick()
+                    }
                 }
-                if (state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.PLAYING) {
-                    onPlayingTick()
-                }
-            }
-        }, true)
+            },
+            options,
+        )
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(playerView)
             playerView.release()

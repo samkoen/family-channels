@@ -31,12 +31,15 @@ class JoinViewModel(
     fun submitCode() {
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, error = null)
-            runCatching { joinFamily(_state.value.code) }
+            runCatching { joinFamily(_state.value.code.trim().uppercase()) }
                 .onSuccess { kids ->
                     _state.value = _state.value.copy(loading = false, children = kids)
                 }
-                .onFailure {
-                    _state.value = _state.value.copy(loading = false, error = "join_failed")
+                .onFailure { error ->
+                    _state.value = _state.value.copy(
+                        loading = false,
+                        error = error.message ?: "join_failed",
+                    )
                 }
         }
     }
@@ -48,8 +51,11 @@ class JoinViewModel(
                 repo.createSession(_state.value.code.trim().uppercase(), childId)
             }.onSuccess {
                 _state.value = _state.value.copy(loading = false, sessionReady = true)
-            }.onFailure {
-                _state.value = _state.value.copy(loading = false, error = "session_failed")
+            }.onFailure { error ->
+                _state.value = _state.value.copy(
+                    loading = false,
+                    error = error.message ?: "session_failed",
+                )
             }
         }
     }

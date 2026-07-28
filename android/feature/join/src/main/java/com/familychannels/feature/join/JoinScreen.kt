@@ -26,7 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier.modifier
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.familychannels.domain.model.ChildProfile
 import com.familychannels.ui.components.AppBackground
@@ -82,7 +82,7 @@ private fun JoinCodeForm(
     viewModel: JoinViewModel,
 ) {
     Text(strings.joinHint, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Spacer(Modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(8.dp))
     OutlinedTextField(
         value = state.code,
         onValueChange = viewModel::onCodeChange,

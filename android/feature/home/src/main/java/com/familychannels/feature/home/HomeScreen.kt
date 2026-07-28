@@ -23,7 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier.modifier
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -52,7 +52,7 @@ fun HomeScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
             Text(strings.channels, style = MaterialTheme.typography.headlineLarge)
-            Spacer(Modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             QuotaHeader(quotaLabel, quota)
             LazyColumn(
                 modifier = Modifier.padding(top = 20.dp),
