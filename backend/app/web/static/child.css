@@ -383,6 +383,48 @@ html[dir="rtl"] .back::before {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+}
+
+.loading-panel[hidden],
+#error[hidden],
+#videos-list[hidden],
+#videos-empty[hidden],
+[hidden] {
+  display: none !important;
+}
+
+.spinner {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  border: 3px solid rgba(18, 22, 28, 0.1);
+  border-top-color: var(--accent, #2f6fed);
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.loading-hint {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
 @media (max-width: 560px) {
   .cards img { width: 64px; height: 64px; }
   .cards .thumb-wide { width: 104px; height: 58px; }

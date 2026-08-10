@@ -109,15 +109,45 @@ def child_videos(
     channels: ChannelService = Depends(channel_service),
     quotas: QuotaService = Depends(quota_service),
 ):
+    """Shell page only — videos load via /videos.json so the UI can show a waiter."""
     session = _child_session(request)
     if not session:
         return RedirectResponse("/watch", status_code=303)
     quota = quotas.get_quota(session["child_id"])
     if not quota.can_watch:
         return RedirectResponse("/watch/home", status_code=303)
-    query = q.strip()
-    load_error = None
     channel = channels.channels.get(channel_id)
+    if not channel or channel.child_id != session["child_id"]:
+        return RedirectResponse("/watch/home", status_code=303)
+    return templates.TemplateResponse(
+        "child_videos.html",
+        ui_ctx(
+            request,
+            channel=channel,
+            channel_id=channel_id,
+            quota=quota,
+            q=q.strip(),
+            refresh=1 if refresh else 0,
+        ),
+    )
+
+
+@router.get("/watch/channels/{channel_id}/videos.json")
+def child_videos_json(
+    channel_id: str,
+    request: Request,
+    q: str = "",
+    refresh: int = 0,
+    channels: ChannelService = Depends(channel_service),
+    quotas: QuotaService = Depends(quota_service),
+):
+    session = _child_session(request)
+    if not session:
+        return JSONResponse({"ok": False, "error": "unauthorized"}, status_code=401)
+    quota = quotas.get_quota(session["child_id"])
+    if not quota.can_watch:
+        return JSONResponse({"ok": False, "error": "quota_exceeded"}, status_code=403)
+    query = q.strip()
     if refresh:
         channels.invalidate_channel_cache(channel_id)
     try:
@@ -126,21 +156,21 @@ def child_videos(
         else:
             videos = channels.list_videos(session["child_id"], channel_id)
     except PermissionError:
-        return RedirectResponse("/watch/home", status_code=303)
+        return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
     except Exception:
-        videos = []
-        load_error = "load_failed"
-    return templates.TemplateResponse(
-        "child_videos.html",
-        ui_ctx(
-            request,
-            channel=channel,
-            channel_id=channel_id,
-            videos=videos,
-            quota=quota,
-            q=query,
-            load_error=load_error,
-        ),
+        return JSONResponse({"ok": False, "error": "load_failed"}, status_code=503)
+    return JSONResponse(
+        {
+            "ok": True,
+            "videos": [
+                {
+                    "video_id": v.get("video_id"),
+                    "title": v.get("title"),
+                    "thumbnail_url": v.get("thumbnail_url"),
+                }
+                for v in videos
+            ],
+        }
     )
 
 
