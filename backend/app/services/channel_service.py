@@ -12,7 +12,10 @@ from app.repositories.child_repo import ChildRepository
 from app.repositories.video_cache_repo import VideoCacheRepository
 from app.services.youtube_client import YouTubeClient
 
-_FILTERED_LIMIT = 50
+# Max videos returned to the child UI for a filtered channel.
+_FILTERED_MATCH_LIMIT = 200
+# How many uploads to inspect when applying title filters (whole-channel scan).
+_CHANNEL_SCAN_LIMIT = 5000
 
 
 class ChannelService:
@@ -109,34 +112,46 @@ class ChannelService:
             return self.youtube.list_classic_videos(youtube_channel_id)
         if not clean:
             return self.youtube.search_classic_videos(youtube_channel_id, query)
-        if not query:
-            return self._videos_for_filter_patterns(youtube_channel_id, clean)
-        batches = [
-            self.youtube.search_classic_videos(
-                youtube_channel_id,
-                f"{pattern} {query}",
-                max_results=_FILTERED_LIMIT,
-            )
-            for pattern in clean
-        ]
-        merged = merge_unique_videos(*batches)
-        return apply_title_filters(merged, clean)[:_FILTERED_LIMIT]
+        matched = self._videos_for_filter_patterns(youtube_channel_id, clean)
+        if query:
+            q = query.casefold()
+            matched = [
+                v
+                for v in matched
+                if q in normalize_filter(v.get("title", "")).casefold()
+            ]
+        return matched[:_FILTERED_MATCH_LIMIT]
 
     def _videos_for_filter_patterns(
         self,
         youtube_channel_id: str,
         patterns: list[str],
     ) -> list[dict]:
-        batches = [
+        # 1) Fast path: YouTube search indexes the whole channel.
+        search_batches = [
             self.youtube.search_classic_videos(
                 youtube_channel_id,
                 pattern,
-                max_results=_FILTERED_LIMIT,
+                max_results=_FILTERED_MATCH_LIMIT,
             )
             for pattern in patterns
         ]
-        merged = merge_unique_videos(*batches)
-        return apply_title_filters(merged, patterns)[:_FILTERED_LIMIT]
+        from_search = apply_title_filters(
+            merge_unique_videos(*search_batches),
+            patterns,
+        )
+        if len(from_search) >= 10:
+            return from_search[:_FILTERED_MATCH_LIMIT]
+        # 2) Fallback / enrichment: paginate uploads and match titles
+        #    (covers older episodes when search is empty/weak, e.g. on Render).
+        scanned = self.youtube.scan_matching_classic_videos(
+            youtube_channel_id,
+            patterns,
+            max_matches=_FILTERED_MATCH_LIMIT,
+            max_scan=_CHANNEL_SCAN_LIMIT,
+        )
+        merged = merge_unique_videos(from_search, scanned)
+        return apply_title_filters(merged, patterns)[:_FILTERED_MATCH_LIMIT]
 
     def _allowed_channel(self, child_id: str, channel_row_id: str) -> ChannelRow:
         channel = self.channels.get(channel_row_id)

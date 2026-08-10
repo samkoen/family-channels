@@ -49,7 +49,24 @@ class FakeYouTube:
             v
             for v in self.list_classic_videos(youtube_channel_id)
             if query.casefold() in v["title"].casefold()
-        ]
+        ][:max_results]
+
+    def scan_matching_classic_videos(
+        self,
+        youtube_channel_id: str,
+        title_patterns: list[str],
+        max_matches: int = 200,
+        max_scan: int = 5000,
+    ):
+        from app.domain.channel_filters import title_matches_filters
+
+        matched = []
+        for video in self.list_classic_videos(youtube_channel_id, max_results=max_scan):
+            if title_matches_filters(video.get("title", ""), title_patterns):
+                matched.append(video)
+            if len(matched) >= max_matches:
+                break
+        return matched
 
     def video_belongs_to_channel(self, video_id: str, youtube_channel_id: str) -> bool:
         return self.get_playable_video(video_id, youtube_channel_id) is not None
@@ -124,16 +141,15 @@ def test_or_filters_limit_videos_and_playback():
     db.close()
 
 
-def test_filters_search_channel_not_only_recent_uploads():
-    """Filters must query YouTube search, not only the latest upload page."""
+def test_filters_scan_whole_channel_not_only_recent_uploads():
+    """Filters must scan/search beyond the latest upload page."""
 
     class TrackingYouTube(FakeYouTube):
         def __init__(self):
-            self.list_calls = 0
             self.search_queries: list[str] = []
+            self.scan_calls = 0
 
         def list_classic_videos(self, youtube_channel_id: str, max_results: int = 25):
-            self.list_calls += 1
             return [
                 {
                     "video_id": "recent",
@@ -150,6 +166,16 @@ def test_filters_search_channel_not_only_recent_uploads():
             max_results: int = 25,
         ):
             self.search_queries.append(query)
+            return []
+
+        def scan_matching_classic_videos(
+            self,
+            youtube_channel_id: str,
+            title_patterns: list[str],
+            max_matches: int = 200,
+            max_scan: int = 5000,
+        ):
+            self.scan_calls += 1
             return [
                 {
                     "video_id": f"old-{i}",
@@ -168,7 +194,7 @@ def test_filters_search_channel_not_only_recent_uploads():
     channel = service.add_for_child(child.id, "@DemoChannel")
     service.add_filter(channel.id, "dino")
     videos = service.list_videos(child.id, channel.id)
-    assert yt.list_calls == 0
     assert yt.search_queries == ["dino"]
+    assert yt.scan_calls == 1
     assert len(videos) == 11
     db.close()

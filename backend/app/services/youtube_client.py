@@ -12,7 +12,8 @@ class YouTubeClient:
 
     def __init__(self, api_key: str | None = None, client: httpx.Client | None = None):
         self.api_key = api_key if api_key is not None else get_settings().youtube_api_key
-        self.client = client or httpx.Client(timeout=20.0)
+        # Channel-wide playlist scans can take longer than a single search call.
+        self.client = client or httpx.Client(timeout=60.0)
 
     def resolve_channel(self, raw_input: str) -> dict:
         query = extract_channel_query(raw_input)
@@ -96,16 +97,84 @@ class YouTubeClient:
         related = items[0]["contentDetails"]["relatedPlaylists"]
         return related.get("uploads")
 
+    def scan_matching_classic_videos(
+        self,
+        youtube_channel_id: str,
+        title_patterns: list[str],
+        max_matches: int = 200,
+        max_scan: int = 5000,
+    ) -> list[dict]:
+        """Scan channel uploads; filter by title first, then drop Shorts via details."""
+        from app.domain.channel_filters import title_matches_filters
+
+        uploads = self._uploads_playlist_id(youtube_channel_id)
+        if not uploads or not title_patterns:
+            return []
+        candidate_ids: list[str] = []
+        scanned = 0
+        page_token: str | None = None
+        while scanned < max_scan and len(candidate_ids) < max_matches * 2:
+            page_size = min(50, max_scan - scanned)
+            rows, page_token = self._playlist_items_page(
+                uploads,
+                page_size=page_size,
+                page_token=page_token,
+            )
+            if not rows:
+                break
+            scanned += len(rows)
+            for video_id, title in rows:
+                if title_matches_filters(title, title_patterns):
+                    candidate_ids.append(video_id)
+                    if len(candidate_ids) >= max_matches * 2:
+                        break
+            if not page_token:
+                break
+        if not candidate_ids:
+            return []
+        details = []
+        for i in range(0, len(candidate_ids), 50):
+            details.extend(self._video_details(candidate_ids[i : i + 50]))
+        return filter_classic_videos(details)[:max_matches]
+
     def _playlist_video_ids(self, playlist_id: str, max_results: int) -> list[str]:
-        data = self._get(
-            "playlistItems",
-            {
-                "part": "contentDetails",
-                "playlistId": playlist_id,
-                "maxResults": min(max_results, 50),
-            },
-        )
-        return [i["contentDetails"]["videoId"] for i in data.get("items") or []]
+        ids: list[str] = []
+        page_token: str | None = None
+        while len(ids) < max_results:
+            page_size = min(50, max_results - len(ids))
+            rows, page_token = self._playlist_items_page(
+                playlist_id,
+                page_size=page_size,
+                page_token=page_token,
+            )
+            if not rows:
+                break
+            ids.extend(video_id for video_id, _title in rows)
+            if not page_token:
+                break
+        return ids
+
+    def _playlist_items_page(
+        self,
+        playlist_id: str,
+        page_size: int = 50,
+        page_token: str | None = None,
+    ) -> tuple[list[tuple[str, str]], str | None]:
+        params: dict = {
+            "part": "snippet,contentDetails",
+            "playlistId": playlist_id,
+            "maxResults": min(max(page_size, 1), 50),
+        }
+        if page_token:
+            params["pageToken"] = page_token
+        data = self._get("playlistItems", params)
+        rows: list[tuple[str, str]] = []
+        for item in data.get("items") or []:
+            video_id = (item.get("contentDetails") or {}).get("videoId")
+            title = (item.get("snippet") or {}).get("title") or ""
+            if video_id:
+                rows.append((video_id, title))
+        return rows, data.get("nextPageToken")
 
     def _video_details(self, video_ids: list[str]) -> list[dict]:
         if not video_ids:

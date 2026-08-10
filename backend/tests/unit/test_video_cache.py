@@ -56,6 +56,16 @@ class TrackingYouTube:
             }
         ]
 
+    def scan_matching_classic_videos(
+        self,
+        youtube_channel_id: str,
+        title_patterns: list[str],
+        max_matches: int = 200,
+        max_scan: int = 5000,
+    ):
+        # Empty scan: tests rely on search_classic_videos for filter hits.
+        return []
+
     def get_playable_video(self, video_id: str, youtube_channel_id: str):
         return {
             "video_id": video_id,

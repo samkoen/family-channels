@@ -17,4 +17,5 @@ def build_video_cache_key(
         )
     )
     q = query.strip().casefold()
-    return f"v1:{channel_id}:{kind}:{q}:{filters_part}"
+    # v2: filtered channels use full uploads scan (not only search page size).
+    return f"v2:{channel_id}:{kind}:{q}:{filters_part}"
