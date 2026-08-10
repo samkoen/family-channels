@@ -30,3 +30,9 @@ def test_apply_title_filters_or():
 
 def test_normalize_filter():
     assert normalize_filter("  hello   world ") == "hello world"
+
+
+def test_normalize_strips_bidi_marks_for_hebrew():
+    dirty = "\u200fכראמל\u200e"
+    assert normalize_filter(dirty) == "כראמל"
+    assert title_matches_filters("כראמל 5 | פרק 1", [dirty]) is True

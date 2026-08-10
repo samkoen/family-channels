@@ -39,25 +39,32 @@ class YouTubeClient:
         if not q:
             return self.list_classic_videos(youtube_channel_id, max_results)
         page_size = min(max(max_results, 25), 50)
-        data = self._get(
-            "search",
-            {
+        # strict can over-filter some kids catalogs from datacenter IPs (Render).
+        for safe in ("moderate", "none"):
+            params = {
                 "part": "snippet",
                 "type": "video",
                 "channelId": youtube_channel_id,
                 "q": q,
                 "maxResults": page_size,
-                "safeSearch": "strict",
+                "safeSearch": safe,
                 "order": "relevance",
-            },
-        )
-        video_ids = [
-            item["id"]["videoId"]
-            for item in data.get("items") or []
-            if item.get("id", {}).get("videoId")
-        ]
-        details = self._video_details(video_ids)
-        return filter_classic_videos(details)[:max_results]
+            }
+            if _has_hebrew(q):
+                params["relevanceLanguage"] = "iw"
+            data = self._get("search", params)
+            video_ids = [
+                item["id"]["videoId"]
+                for item in data.get("items") or []
+                if item.get("id", {}).get("videoId")
+            ]
+            if not video_ids:
+                continue
+            details = self._video_details(video_ids)
+            classic = filter_classic_videos(details)[:max_results]
+            if classic:
+                return classic
+        return []
 
     def _channel_by_id(self, channel_id: str) -> dict:
         data = self._get("channels", {"part": "snippet", "id": channel_id})
@@ -150,8 +157,36 @@ class YouTubeClient:
             raise RuntimeError("youtube_api_key_missing")
         params = {**params, "key": self.api_key}
         response = self.client.get(f"{self.BASE}/{path}", params=params)
-        response.raise_for_status()
+        if response.is_error:
+            detail = _youtube_error_detail(response)
+            raise RuntimeError(f"youtube_api_{response.status_code}:{detail}")
         return response.json()
+
+    def ping(self) -> dict:
+        """Lightweight check that the API key works from this host."""
+        data = self._get(
+            "channels",
+            {"part": "id", "id": "UC_x5XG1OV2P6uZZ5FSM9Ttw"},
+        )
+        return {"ok": True, "items": len(data.get("items") or [])}
+
+
+def _has_hebrew(text: str) -> bool:
+    return any("\u0590" <= ch <= "\u05FF" for ch in text)
+
+
+def _youtube_error_detail(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+        err = payload.get("error") or {}
+        reason = ""
+        errors = err.get("errors") or []
+        if errors:
+            reason = str(errors[0].get("reason") or "")
+        message = str(err.get("message") or response.text)[:180]
+        return f"{reason}:{message}" if reason else message
+    except Exception:
+        return (response.text or "")[:180]
 
 
 def _thumb(snippet: dict) -> str:

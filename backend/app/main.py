@@ -24,3 +24,17 @@ def on_startup() -> None:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/health/youtube")
+def health_youtube() -> dict:
+    from app.config import get_settings
+    from app.services.youtube_client import YouTubeClient
+
+    settings = get_settings()
+    if not settings.youtube_api_key:
+        return {"ok": False, "error": "youtube_api_key_missing"}
+    try:
+        return YouTubeClient().ping()
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:240]}
