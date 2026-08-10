@@ -15,6 +15,12 @@
   {% if error == 'filter' %}
   <p class="error">{{ t.filter_error }}</p>
   {% endif %}
+  {% if cleared %}
+  <p class="muted">{{ t.cache_cleared }}</p>
+  {% endif %}
+  <form method="post" action="/channels/{{ channel.id }}/refresh-cache" class="row" style="margin-top:0.75rem">
+    <button type="submit" class="secondary">{{ t.refresh_videos }}</button>
+  </form>
 </section>
 
 <section class="panel flat">

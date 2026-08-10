@@ -105,6 +105,7 @@ def child_videos(
     channel_id: str,
     request: Request,
     q: str = "",
+    refresh: int = 0,
     channels: ChannelService = Depends(channel_service),
     quotas: QuotaService = Depends(quota_service),
 ):
@@ -115,8 +116,11 @@ def child_videos(
     if not quota.can_watch:
         return RedirectResponse("/watch/home", status_code=303)
     query = q.strip()
+    load_error = None
+    channel = channels.channels.get(channel_id)
+    if refresh:
+        channels.invalidate_channel_cache(channel_id)
     try:
-        channel = channels.channels.get(channel_id)
         if query:
             videos = channels.search_videos(session["child_id"], channel_id, query)
         else:
@@ -125,7 +129,7 @@ def child_videos(
         return RedirectResponse("/watch/home", status_code=303)
     except Exception:
         videos = []
-        channel = channels.channels.get(channel_id)
+        load_error = "load_failed"
     return templates.TemplateResponse(
         "child_videos.html",
         ui_ctx(
@@ -135,6 +139,7 @@ def child_videos(
             videos=videos,
             quota=quota,
             q=query,
+            load_error=load_error,
         ),
     )
 

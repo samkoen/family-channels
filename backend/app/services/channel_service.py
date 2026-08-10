@@ -92,7 +92,9 @@ class ChannelService:
             if cached is not None:
                 return cached
         videos = self._fetch_videos(channel.youtube_channel_id, patterns, query)
-        if self.cache:
+        # Never cache empty lists: transient YouTube/API failures would hide
+        # real videos for the whole TTL (e.g. Hebrew filter "כראמל").
+        if self.cache and videos:
             self.cache.put(key, channel.id, videos, self.cache_ttl_seconds)
         return videos
 

@@ -111,6 +111,35 @@ def test_filter_change_invalidates_cache():
     db.close()
 
 
+def test_empty_results_are_not_cached():
+    db = SessionLocal()
+    family = FamilyService(FamilyRepository(db)).create_family("6666")
+    child = ChildRepository(db).create(family.id, "Empty", 60, "#444")
+
+    class EmptyThenData(TrackingYouTube):
+        def list_classic_videos(self, youtube_channel_id: str, max_results: int = 25):
+            self.list_calls += 1
+            if self.list_calls == 1:
+                return []
+            return [
+                {
+                    "video_id": "vid1",
+                    "title": "Hello",
+                    "thumbnail_url": "https://example.com/v.jpg",
+                    "duration": "PT5M",
+                }
+            ]
+
+    yt = EmptyThenData()
+    service = _service(db, yt)
+    channel = service.add_for_child(child.id, "@Demo")
+    assert service.list_videos(child.id, channel.id) == []
+    second = service.list_videos(child.id, channel.id)
+    assert len(second) == 1
+    assert yt.list_calls == 2
+    db.close()
+
+
 def test_expired_cache_is_ignored():
     db = SessionLocal()
     family = FamilyService(FamilyRepository(db)).create_family("9999")

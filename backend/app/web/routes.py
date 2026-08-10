@@ -252,7 +252,30 @@ def edit_channel(
             child=child,
             filters=repo.list_filters(channel.id),
             error=request.query_params.get("error"),
+            cleared=request.query_params.get("cleared"),
         ),
+    )
+
+
+@router.post("/channels/{channel_id}/refresh-cache")
+def refresh_channel_cache(
+    channel_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    children: ChildRepository = Depends(child_repo),
+    channels: ChannelService = Depends(channel_service),
+):
+    family_id = _family_id(request)
+    if not family_id:
+        return RedirectResponse("/login", status_code=303)
+    repo = ChannelRepository(db)
+    channel, child = _owned_channel(channel_id, family_id, repo, children)
+    if not channel or not child:
+        return RedirectResponse("/dashboard", status_code=303)
+    channels.invalidate_channel_cache(channel_id)
+    return RedirectResponse(
+        f"/channels/{channel_id}/edit?cleared=1",
+        status_code=303,
     )
 
 
