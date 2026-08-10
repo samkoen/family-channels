@@ -155,6 +155,9 @@ def child_play(
     session = _child_session(request)
     if not session:
         return RedirectResponse("/watch", status_code=303)
+    quota = quotas.get_quota(session["child_id"])
+    if not quota.can_watch:
+        return RedirectResponse("/watch/home", status_code=303)
     try:
         allowed = channels.can_play_video(session["child_id"], channel_id, video_id)
     except PermissionError:
@@ -164,6 +167,7 @@ def child_play(
     if not allowed:
         return RedirectResponse(f"/watch/channels/{channel_id}", status_code=303)
     try:
+        # Start of this viewing session counts toward the daily total.
         quota = quotas.heartbeat(session["child_id"], 1)
     except PermissionError:
         return RedirectResponse("/watch/home", status_code=303)
@@ -194,21 +198,29 @@ def child_heartbeat(
 
 
 @router.post("/watch/heartbeat.json")
-def child_heartbeat_json(
+async def child_heartbeat_json(
     request: Request,
     quotas: QuotaService = Depends(quota_service),
 ):
     session = _child_session(request)
     if not session:
         return JSONResponse({"ok": False, "can_watch": False}, status_code=401)
+    minutes = 1
     try:
-        quota = quotas.heartbeat(session["child_id"], 1)
+        payload = await request.json()
+        if isinstance(payload, dict) and payload.get("minutes") is not None:
+            minutes = max(1, min(30, int(payload["minutes"])))
+    except Exception:
+        minutes = 1
+    try:
+        quota = quotas.heartbeat(session["child_id"], minutes)
     except PermissionError:
         return JSONResponse(
             {
                 "ok": False,
                 "can_watch": False,
                 "minutes_remaining": 0,
+                "minutes_used": quotas.get_quota(session["child_id"]).minutes_used,
             }
         )
     return JSONResponse(

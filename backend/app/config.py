@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     youtube_api_key: str = ""
     session_cookie_name: str = "yt_parent_session"
     child_token_ttl_hours: int = 72
-    youtube_cache_ttl_seconds: int = 3 * 60 * 60
+    youtube_cache_ttl_seconds: int = 24 * 60 * 60
 
 
 @lru_cache

@@ -4,8 +4,12 @@
 <main class="wrap">
   <section class="panel player-panel">
     <a class="back" href="/watch/channels/{{ channel_id }}">{{ t.back_videos }}</a>
-    <p class="quota-live" id="quota-live" data-remaining="{{ quota.minutes_remaining }}">
-      {{ t.min_left.format(n=quota.minutes_remaining) }}
+    <p class="quota-live" id="quota-live"
+       data-remaining="{{ quota.minutes_remaining }}"
+       data-used="{{ quota.minutes_used }}"
+       data-limit="{{ quota.daily_limit_minutes }}">
+      {{ t.min_used.format(used=quota.minutes_used, limit=quota.daily_limit_minutes) }}
+      · {{ t.min_left.format(n=quota.minutes_remaining) }}
     </p>
     <div class="player" dir="ltr" id="player-wrap">
       <iframe
@@ -22,13 +26,18 @@
 <script>
 (function () {
   var label = document.getElementById("quota-live");
-  var template = {{ t.min_left|tojson }};
+  var leftTpl = {{ t.min_left|tojson }};
+  var usedTpl = {{ t.min_used|tojson }};
   var homeUrl = "/watch/home";
+  var lastTick = Date.now();
 
-  function renderRemaining(n) {
+  function render(used, remaining, limit) {
     if (!label) return;
-    label.textContent = String(template).split("{n}").join(String(n));
-    label.dataset.remaining = String(n);
+    var usedText = String(usedTpl).split("{used}").join(String(used)).split("{limit}").join(String(limit));
+    var leftText = String(leftTpl).split("{n}").join(String(remaining));
+    label.textContent = usedText + " · " + leftText;
+    label.dataset.remaining = String(remaining);
+    label.dataset.used = String(used);
   }
 
   function stopPlayback() {
@@ -37,26 +46,37 @@
     window.location.href = homeUrl;
   }
 
-  async function tick() {
+  async function consume(minutes) {
+    if (minutes < 1) return;
     try {
       var res = await fetch("/watch/heartbeat.json", {
         method: "POST",
         credentials: "same-origin",
-        headers: { "Accept": "application/json" },
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ minutes: minutes }),
       });
       var data = await res.json();
       if (!data.can_watch) {
         stopPlayback();
         return;
       }
-      renderRemaining(data.minutes_remaining);
+      render(data.minutes_used, data.minutes_remaining, data.daily_limit_minutes);
     } catch (e) {
-      // ignore transient network errors
+      // ignore transient network errors; next tick will retry
     }
   }
 
-  // Already charged 1 min on page load; next ticks every 60s while page is open.
-  setInterval(tick, 60000);
+  setInterval(function () {
+    if (document.hidden) return;
+    var now = Date.now();
+    var elapsedMin = Math.floor((now - lastTick) / 60000);
+    if (elapsedMin < 1) return;
+    lastTick = now;
+    consume(elapsedMin);
+  }, 15000);
 })();
 </script>
 {% endblock %}

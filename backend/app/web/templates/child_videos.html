@@ -5,9 +5,6 @@
   <section class="panel">
     <a class="back" href="/watch/home">{{ t.channels }}</a>
     <h1>{{ channel.title if channel else '' }}</h1>
-    <p class="row-actions">
-      <a class="button secondary compact" href="/watch/channels/{{ channel_id }}?refresh=1{% if q %}&q={{ q|urlencode }}{% endif %}">{{ t.refresh_videos }}</a>
-    </p>
     {% if load_error %}
     <p class="error">{{ t.videos_load_error }}</p>
     {% endif %}

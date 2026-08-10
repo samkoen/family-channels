@@ -11,7 +11,7 @@
     {% if quota.can_watch %}
     <div class="quota">
       <div class="quota-bar" aria-hidden="true"><span style="width: {{ pct }}%"></span></div>
-      <span>{{ t.min_left.format(n=quota.minutes_remaining) }}</span>
+      <span>{{ t.min_used.format(used=quota.minutes_used, limit=quota.daily_limit_minutes) }} · {{ t.min_left.format(n=quota.minutes_remaining) }}</span>
     </div>
     {% else %}
     <div class="quota empty">
