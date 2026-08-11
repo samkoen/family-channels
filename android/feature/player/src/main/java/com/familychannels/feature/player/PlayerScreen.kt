@@ -1,6 +1,9 @@
 package com.familychannels.feature.player
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,20 +12,28 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.familychannels.ui.components.AppBackground
 import com.familychannels.ui.i18n.Strings
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
+
+/**
+ * Must be a real HTTPS site. The library calls loadDataWithBaseURL(origin, html).
+ * Package-name origins (https://com.familychannels.app) now yield a black screen (YouTube 153).
+ */
+private const val PLAYER_ORIGIN = "https://family-channels.onrender.com"
 
 @Composable
 fun PlayerScreen(
@@ -32,32 +43,47 @@ fun PlayerScreen(
     onFinished: () -> Unit,
     onHeartbeat: () -> Unit,
 ) {
-    // Exact behavior from f90a747 (worked through Mon Aug 10).
-    val safeId = remember(videoId) { videoId.takeIf { it in allowedIds } }
-    AppBackground(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-        ) {
-            TextButton(onClick = onFinished, modifier = Modifier.padding(horizontal = 8.dp)) {
-                Text(strings.back, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (safeId == null) {
-                Text(
-                    "Unavailable",
-                    modifier = Modifier.padding(20.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            } else {
+    val safeId = remember(videoId, allowedIds) {
+        videoId.takeIf { it.isNotBlank() && (allowedIds.isEmpty() || it in allowedIds) }
+    }
+    var status by remember(safeId) { mutableStateOf("…") }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F8FA))
+            .statusBarsPadding(),
+    ) {
+        TextButton(onClick = onFinished, modifier = Modifier.padding(horizontal = 8.dp)) {
+            Text(strings.back, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (safeId == null) {
+            Text(
+                "Unavailable",
+                modifier = Modifier.padding(20.dp),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        } else {
+            Text(
+                status,
+                modifier = Modifier.padding(horizontal = 16.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
                 LockedYouTubePlayer(
                     videoId = safeId,
                     onEnded = onFinished,
                     onPlayingTick = onHeartbeat,
+                    onStatus = { status = it },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .aspectRatio(16f / 9f)
+                        .padding(horizontal = 12.dp),
                 )
             }
         }
@@ -69,49 +95,60 @@ private fun LockedYouTubePlayer(
     videoId: String,
     onEnded: () -> Unit,
     onPlayingTick: () -> Unit,
+    onStatus: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    val context = LocalContext.current
-    val playerView = remember {
-        YouTubePlayerView(context).apply {
-            enableAutomaticInitialization = false
-        }
-    }
-    DisposableEffect(playerView, videoId) {
-        lifecycleOwner.lifecycle.addObserver(playerView)
-        // Restored: package-name origin (commit 65e3e31 / f90a747). Do NOT use youtube-nocookie.
-        val options = IFramePlayerOptions.Builder()
-            .controls(1)
-            .rel(0)
-            .ivLoadPolicy(3)
-            .ccLoadPolicy(0)
-            .origin("https://${context.packageName}")
-            .build()
-        playerView.initialize(
-            object : AbstractYouTubePlayerListener() {
-                override fun onReady(youTubePlayer: YouTubePlayer) {
-                    youTubePlayer.loadVideo(videoId, 0f)
-                }
+    androidx.compose.runtime.key(videoId) {
+        AndroidView(
+            modifier = modifier,
+            factory = { context ->
+                YouTubePlayerView(context).apply {
+                    enableAutomaticInitialization = false
+                    lifecycleOwner.lifecycle.addObserver(this)
+                    val options = IFramePlayerOptions.Builder(context)
+                        .controls(1)
+                        .rel(0)
+                        .ivLoadPolicy(3)
+                        .ccLoadPolicy(0)
+                        .fullscreen(1)
+                        .origin(PLAYER_ORIGIN)
+                        .build()
+                    initialize(
+                        object : AbstractYouTubePlayerListener() {
+                            override fun onReady(youTubePlayer: YouTubePlayer) {
+                                onStatus("ready")
+                                youTubePlayer.loadVideo(videoId, 0f)
+                            }
 
-                override fun onStateChange(
-                    youTubePlayer: YouTubePlayer,
-                    state: PlayerConstants.PlayerState,
-                ) {
-                    if (state == PlayerConstants.PlayerState.ENDED) {
-                        onEnded()
-                    }
-                    if (state == PlayerConstants.PlayerState.PLAYING) {
-                        onPlayingTick()
-                    }
+                            override fun onStateChange(
+                                youTubePlayer: YouTubePlayer,
+                                state: PlayerConstants.PlayerState,
+                            ) {
+                                onStatus(state.name)
+                                if (state == PlayerConstants.PlayerState.ENDED) {
+                                    onEnded()
+                                }
+                                if (state == PlayerConstants.PlayerState.PLAYING) {
+                                    onPlayingTick()
+                                }
+                            }
+
+                            override fun onError(
+                                youTubePlayer: YouTubePlayer,
+                                error: PlayerConstants.PlayerError,
+                            ) {
+                                onStatus("error: ${error.name}")
+                            }
+                        },
+                        options,
+                    )
                 }
             },
-            options,
+            onRelease = { view ->
+                lifecycleOwner.lifecycle.removeObserver(view)
+                view.release()
+            },
         )
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(playerView)
-            playerView.release()
-        }
     }
-    AndroidView(factory = { playerView }, modifier = modifier)
 }

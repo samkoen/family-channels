@@ -23,6 +23,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-viewbinding")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-    implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.2")
+    // 12.x breaks with black screen after YouTube IFrame rule changes; 13.x sets origin correctly.
+    implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 }

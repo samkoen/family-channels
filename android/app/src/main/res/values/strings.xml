@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Family Channels</string>
+    <string name="player_loading">Chargement de la vidéo…</string>
+    <string name="player_loading_origin">Chargement… (%1$s)</string>
+    <string name="player_error_code">Erreur lecture (%1$s)</string>
+    <string name="player_failed">Impossible de lire la vidéo dans l’app.</string>
+    <string name="player_need_deploy">Page lecteur absente sur le serveur. Déployez la dernière version du backend (route /embed).</string>
+    <string name="player_http_error">Erreur serveur HTTP %1$d</string>
+    <string name="player_debug">%1$s</string>
 </resources>

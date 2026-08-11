@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.navigation.NavType
@@ -31,7 +32,6 @@ import com.familychannels.feature.home.HomeScreen
 import com.familychannels.feature.home.HomeViewModel
 import com.familychannels.feature.join.JoinScreen
 import com.familychannels.feature.join.JoinViewModel
-import com.familychannels.feature.player.PlayerScreen
 import com.familychannels.feature.quota.QuotaViewModel
 import com.familychannels.feature.quota.formatQuotaLabel
 import com.familychannels.feature.videos.VideosScreen
@@ -113,34 +113,14 @@ private fun FamilyApp(repo: FamilyRepositoryImpl, store: SessionStore) {
                         VideosViewModel(LoadVideosUseCase(repo), channelId)
                     }
                     val state by vm.state.collectAsState()
+                    val context = LocalContext.current
                     VideosScreen(
                         viewModel = vm,
                         strings = strings,
                         onVideoClick = { video ->
                             if (quota?.canWatch == false) return@VideosScreen
-                            val ids = state.videos.joinToString(",") { it.videoId }
-                            nav.navigate("player/${video.videoId}?ids=$ids")
+                            context.startActivity(PlayerActivity.intent(context, video.videoId))
                         },
-                    )
-                }
-                composable(
-                    "player/{videoId}?ids={ids}",
-                    arguments = listOf(
-                        navArgument("videoId") { type = NavType.StringType },
-                        navArgument("ids") { type = NavType.StringType; defaultValue = "" },
-                    ),
-                ) { entry ->
-                    val videoId = entry.arguments?.getString("videoId").orEmpty()
-                    val ids = entry.arguments?.getString("ids").orEmpty()
-                        .split(",")
-                        .filter { it.isNotBlank() }
-                        .toSet()
-                    PlayerScreen(
-                        videoId = videoId,
-                        allowedIds = ids,
-                        strings = strings,
-                        onFinished = { nav.popBackStack() },
-                        onHeartbeat = { quotaVm.heartbeat() },
                     )
                 }
             }

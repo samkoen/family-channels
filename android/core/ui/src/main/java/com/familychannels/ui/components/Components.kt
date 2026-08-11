@@ -69,52 +69,20 @@ private val ButtonShape = RoundedCornerShape(16.dp)
 
 @Composable
 fun AppBackground(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    // Keep this free of Canvas overlays — they can black-out WebView/SurfaceView screens.
     Box(
-        modifier = modifier
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFF7FBFC),
-                        Mist,
-                        Color(0xFFE8F2F4),
-                        MistDeep,
-                    ),
+        modifier = modifier.background(
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFF7FBFC),
+                    Mist,
+                    Color(0xFFE8F2F4),
+                    MistDeep,
                 ),
             ),
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0x5520B2B8), Color.Transparent),
-                    center = Offset(w * 0.12f, h * 0.08f),
-                    radius = w * 0.55f,
-                ),
-                center = Offset(w * 0.12f, h * 0.08f),
-                radius = w * 0.55f,
-            )
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0x33E85D4C), Color.Transparent),
-                    center = Offset(w * 0.92f, h * 0.18f),
-                    radius = w * 0.42f,
-                ),
-                center = Offset(w * 0.92f, h * 0.18f),
-                radius = w * 0.42f,
-            )
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0x3314A3A8), Color.Transparent),
-                    center = Offset(w * 0.75f, h * 0.88f),
-                    radius = w * 0.5f,
-                ),
-                center = Offset(w * 0.75f, h * 0.88f),
-                radius = w * 0.5f,
-            )
-        }
-        content()
-    }
+        ),
+        content = { content() },
+    )
 }
 
 @Composable
