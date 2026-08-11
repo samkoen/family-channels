@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 os.environ.setdefault(
     "DATABASE_URL",
-    "postgresql+psycopg://postgres:root@127.0.0.1:5432/ytfamily",
+    "postgresql+psycopg://postgres:root@127.0.0.1:5432/ytfamily_test",
 )
 os.environ.setdefault("SECRET_KEY", "test-secret")
 

@@ -118,23 +118,26 @@ private fun FamilyApp(repo: FamilyRepositoryImpl, store: SessionStore) {
                         strings = strings,
                         onVideoClick = { video ->
                             if (quota?.canWatch == false) return@VideosScreen
-                            val ids = state.videos.joinToString(",") { it.videoId }
-                            nav.navigate("player/${video.videoId}?ids=$ids")
+                            val ids = ArrayList(state.videos.map { it.videoId })
+                            nav.currentBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("allowed_video_ids", ids)
+                            nav.navigate("player/${video.videoId}")
                         },
                     )
                 }
                 composable(
-                    "player/{videoId}?ids={ids}",
+                    "player/{videoId}",
                     arguments = listOf(
                         navArgument("videoId") { type = NavType.StringType },
-                        navArgument("ids") { type = NavType.StringType; defaultValue = "" },
                     ),
                 ) { entry ->
                     val videoId = entry.arguments?.getString("videoId").orEmpty()
-                    val ids = entry.arguments?.getString("ids").orEmpty()
-                        .split(",")
-                        .filter { it.isNotBlank() }
-                        .toSet()
+                    val ids = nav.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.get<ArrayList<String>>("allowed_video_ids")
+                        ?.toSet()
+                        .orEmpty()
                     PlayerScreen(
                         videoId = videoId,
                         allowedIds = ids,
