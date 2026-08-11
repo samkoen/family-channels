@@ -147,12 +147,13 @@ private fun LockedYouTubePlayer(
     }
     DisposableEffect(playerView, videoId) {
         lifecycleOwner.lifecycle.addObserver(playerView)
+        // Must be a real https origin YouTube accepts — package-name origins break playback.
         val options = IFramePlayerOptions.Builder()
             .controls(1)
             .rel(0)
             .ivLoadPolicy(3)
             .ccLoadPolicy(0)
-            .origin("https://${context.packageName}")
+            .origin("https://www.youtube-nocookie.com")
             .build()
         playerView.initialize(
             object : AbstractYouTubePlayerListener() {
@@ -169,6 +170,19 @@ private fun LockedYouTubePlayer(
                     }
                     if (state == PlayerConstants.PlayerState.PLAYING) {
                         onPlayingTick()
+                    }
+                }
+
+                override fun onError(
+                    youTubePlayer: YouTubePlayer,
+                    error: PlayerConstants.PlayerError,
+                ) {
+                    // Retry once with cue+play — helps after transient embed init errors.
+                    if (error == PlayerConstants.PlayerError.HTML_5_PLAYER ||
+                        error == PlayerConstants.PlayerError.UNKNOWN
+                    ) {
+                        youTubePlayer.cueVideo(videoId, 0f)
+                        youTubePlayer.play()
                     }
                 }
             },

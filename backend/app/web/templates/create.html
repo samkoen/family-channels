@@ -14,15 +14,33 @@
       {% if error %}
       <p class="error">
         {% if error == 'pin_mismatch' %}{{ t.pin_mismatch }}
-        {% else %}{{ t.invalid_pin }}{% endif %}
+        {% elif error == 'name_taken' %}{{ t.name_taken }}
+        {% elif error == 'invalid_family_name' %}{{ t.invalid_family_name }}
+        {% elif error == 'invalid_pin' %}{{ t.invalid_pin }}
+        {% else %}{{ t.invalid_family_name }}{% endif %}
       </p>
       {% endif %}
       <form method="post" action="/create" enctype="application/x-www-form-urlencoded" class="stack" autocomplete="on">
-        <label for="pin">{{ t.pin }}
-          <input id="pin" type="password" name="pin" inputmode="numeric" pattern="[0-9]{4,6}" required autocomplete="new-password" dir="ltr" />
+        <label for="family_name">{{ t.family_name }}
+          <input
+            id="family_name"
+            name="family_name"
+            type="text"
+            required
+            minlength="3"
+            maxlength="120"
+            autocomplete="username"
+            placeholder="{{ t.family_name_ph }}"
+            value="{{ family_name or '' }}"
+            dir="ltr"
+          />
+        </label>
+        <p class="muted" style="margin:0">{{ t.family_name_hint }}</p>
+        <label for="pin">{{ t.pin_optional }}
+          <input id="pin" type="password" name="pin" inputmode="numeric" pattern="[0-9]{4,6}" autocomplete="new-password" dir="ltr" />
         </label>
         <label for="pin_confirm">{{ t.pin_confirm }}
-          <input id="pin_confirm" type="password" name="pin_confirm" inputmode="numeric" pattern="[0-9]{4,6}" required autocomplete="new-password" dir="ltr" />
+          <input id="pin_confirm" type="password" name="pin_confirm" inputmode="numeric" pattern="[0-9]{4,6}" autocomplete="new-password" dir="ltr" />
         </label>
         <div class="form-actions">
           <button type="submit">{{ t.create_submit }}</button>

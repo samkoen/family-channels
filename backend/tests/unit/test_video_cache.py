@@ -76,8 +76,9 @@ class TrackingYouTube:
 
 
 def setup_module():
-    Base.metadata.drop_all(bind=engine)
-    init_db()
+    from tests.conftest import reset_test_db
+
+    reset_test_db()
 
 
 def _service(db, yt):
@@ -92,7 +93,7 @@ def _service(db, yt):
 
 def test_list_videos_uses_cache_on_second_call():
     db = SessionLocal()
-    family = FamilyService(FamilyRepository(db)).create_family("7777")
+    family = FamilyService(FamilyRepository(db)).create_family("test-family-7777", "7777")
     child = ChildRepository(db).create(family.id, "CacheKid", 60, "#111")
     yt = TrackingYouTube()
     service = _service(db, yt)
@@ -106,7 +107,7 @@ def test_list_videos_uses_cache_on_second_call():
 
 def test_filter_change_invalidates_cache():
     db = SessionLocal()
-    family = FamilyService(FamilyRepository(db)).create_family("8888")
+    family = FamilyService(FamilyRepository(db)).create_family("test-family-8888", "8888")
     child = ChildRepository(db).create(family.id, "Noa", 60, "#222")
     yt = TrackingYouTube()
     service = _service(db, yt)
@@ -123,7 +124,7 @@ def test_filter_change_invalidates_cache():
 
 def test_empty_results_are_not_cached():
     db = SessionLocal()
-    family = FamilyService(FamilyRepository(db)).create_family("6666")
+    family = FamilyService(FamilyRepository(db)).create_family("test-family-6666", "6666")
     child = ChildRepository(db).create(family.id, "Empty", 60, "#444")
 
     class EmptyThenData(TrackingYouTube):
@@ -152,7 +153,7 @@ def test_empty_results_are_not_cached():
 
 def test_expired_cache_is_ignored():
     db = SessionLocal()
-    family = FamilyService(FamilyRepository(db)).create_family("9999")
+    family = FamilyService(FamilyRepository(db)).create_family("test-family-9999", "9999")
     child = ChildRepository(db).create(family.id, "Exp", 60, "#333")
     yt = TrackingYouTube()
     service = _service(db, yt)

@@ -6,23 +6,23 @@ os.environ.setdefault(
 )
 os.environ.setdefault("SECRET_KEY", "test-secret")
 
-from app.db import Base, SessionLocal, engine, init_db
+from app.db import SessionLocal
 from app.domain.watch_day import today
 from app.repositories.child_repo import ChildRepository
 from app.repositories.family_repo import FamilyRepository
 from app.repositories.watch_repo import WatchRepository
 from app.services.family_service import FamilyService
 from app.services.quota_service import QuotaService
+from tests.conftest import reset_test_db
 
 
 def setup_module():
-    Base.metadata.drop_all(bind=engine)
-    init_db()
+    reset_test_db()
 
 
 def _child(limit: int = 5):
     db = SessionLocal()
-    family = FamilyService(FamilyRepository(db)).create_family("1111")
+    family = FamilyService(FamilyRepository(db)).create_family("test-family-1111", "1111")
     child = ChildRepository(db).create(family.id, "Emma", limit, "#333")
     return db, child
 

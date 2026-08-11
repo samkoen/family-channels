@@ -1,6 +1,9 @@
-import pytest
-
-from app.domain.family_code import generate_family_code, is_valid_pin
+from app.domain.family_code import (
+    generate_family_code,
+    is_valid_family_name,
+    is_valid_pin,
+    normalize_family_name,
+)
 
 
 def test_generate_family_code_length():
@@ -19,3 +22,12 @@ def test_valid_pin_rejects_bad_values():
     assert not is_valid_pin("12")
     assert not is_valid_pin("abcdef")
     assert not is_valid_pin("1234567")
+
+
+def test_normalize_family_name():
+    assert normalize_family_name("  Parent@Email.COM ") == "parent@email.com"
+
+
+def test_valid_family_name():
+    assert is_valid_family_name("abc")
+    assert not is_valid_family_name("ab")

@@ -55,31 +55,33 @@ async def create_family(
     families: FamilyService = Depends(family_service),
 ):
     form = await request.form()
+    family_name = str(form.get("family_name") or "").strip()
     pin = str(form.get("pin") or "").strip()
     pin_confirm = str(form.get("pin_confirm") or "").strip()
-    if not pin or not pin_confirm:
-        return templates.TemplateResponse(
-            "create.html",
-            ui_ctx(request, error="invalid_pin"),
-            status_code=400,
-        )
-    if pin != pin_confirm:
-        return templates.TemplateResponse(
-            "create.html",
-            ui_ctx(request, error="pin_mismatch"),
-            status_code=400,
-        )
+    ctx_extra = {"family_name": family_name}
+    if pin or pin_confirm:
+        if pin != pin_confirm:
+            return templates.TemplateResponse(
+                "create.html",
+                ui_ctx(request, error="pin_mismatch", **ctx_extra),
+                status_code=400,
+            )
     try:
-        family = families.create_family(pin)
-    except ValueError:
+        family = families.create_family(family_name, pin or None)
+    except ValueError as exc:
+        code = str(exc) if str(exc) in {
+            "invalid_family_name",
+            "name_taken",
+            "invalid_pin",
+        } else "invalid_family_name"
         return templates.TemplateResponse(
             "create.html",
-            ui_ctx(request, error="invalid_pin"),
+            ui_ctx(request, error=code, **ctx_extra),
             status_code=400,
         )
     response = templates.TemplateResponse(
         "created.html",
-        ui_ctx(request, code=family.code),
+        ui_ctx(request, code=family.code, family_name=family.name),
     )
     token = make_parent_token(family.id)
     response.set_cookie(
@@ -103,20 +105,20 @@ async def login_submit(
     families: FamilyService = Depends(family_service),
 ):
     form = await request.form()
-    family_code = str(form.get("family_code") or "").strip()
+    family_name = str(form.get("family_name") or form.get("family_code") or "").strip()
     pin = str(form.get("pin") or "").strip()
-    if not family_code or not pin:
+    if not family_name:
         return templates.TemplateResponse(
             "login.html",
-            ui_ctx(request, error="invalid_credentials"),
+            ui_ctx(request, error="invalid_credentials", family_name=family_name),
             status_code=400,
         )
     try:
-        family = families.authenticate(family_code, pin)
+        family = families.authenticate(family_name, pin or None)
     except PermissionError:
         return templates.TemplateResponse(
             "login.html",
-            ui_ctx(request, error="invalid_credentials"),
+            ui_ctx(request, error="invalid_credentials", family_name=family_name),
             status_code=401,
         )
     response = RedirectResponse("/dashboard", status_code=303)
@@ -162,6 +164,7 @@ def dashboard(
         ui_ctx(
             request,
             family_code=family.code if family else "",
+            family_name=family.name if family else "",
             children=kids,
             channels_by_child=channels_by_child,
             filters_by_channel=filters_by_channel,

@@ -187,11 +187,12 @@ class YouTubeClient:
             data = self._get(
                 "videos",
                 {
-                    "part": "snippet,contentDetails",
+                    "part": "snippet,contentDetails,status",
                     "id": ",".join(batch),
                 },
             )
             for item in data.get("items") or []:
+                status = item.get("status") or {}
                 result.append(
                     {
                         "video_id": item["id"],
@@ -199,6 +200,7 @@ class YouTubeClient:
                         "thumbnail_url": _thumb(item["snippet"]),
                         "duration": item["contentDetails"]["duration"],
                         "channel_id": item["snippet"].get("channelId", ""),
+                        "embeddable": bool(status.get("embeddable", True)),
                     }
                 )
         return result
@@ -214,6 +216,8 @@ class YouTubeClient:
         if video.get("channel_id") != youtube_channel_id:
             return None
         if is_short_video(video.get("duration", "PT0S")):
+            return None
+        if video.get("embeddable") is False:
             return None
         return video
 

@@ -15,11 +15,20 @@
       <p class="error">{{ t.invalid_credentials }}</p>
       {% endif %}
       <form method="post" action="/login" enctype="application/x-www-form-urlencoded" class="stack" autocomplete="on">
-        <label for="family_code">{{ t.family_code }}
-          <input id="family_code" name="family_code" type="text" required autocomplete="username" placeholder="AB12CD" dir="ltr" />
+        <label for="family_name">{{ t.family_name }}
+          <input
+            id="family_name"
+            name="family_name"
+            type="text"
+            required
+            autocomplete="username"
+            placeholder="{{ t.family_name_ph }}"
+            value="{{ family_name or '' }}"
+            dir="ltr"
+          />
         </label>
-        <label for="pin">{{ t.pin }}
-          <input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" required autocomplete="current-password" dir="ltr" />
+        <label for="pin">{{ t.pin_optional }}
+          <input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" autocomplete="current-password" dir="ltr" />
         </label>
         <div class="form-actions">
           <button type="submit">{{ t.sign_in }}</button>

@@ -10,7 +10,12 @@
     <p class="brand-hero" dir="ltr">Family Channels</p>
     <p class="lede">{{ t.created_lede }}</p>
     <div class="panel flat">
+      <h1>{{ t.family_name_label }}</h1>
+      <div class="code-block">
+        <p class="code" dir="ltr" style="letter-spacing:0.04em;font-size:1.45rem">{{ family_name }}</p>
+      </div>
       <h1>{{ t.family_code_label }}</h1>
+      <p class="muted" style="margin-top:0">{{ t.family_code_for_kids }}</p>
       <div class="code-block">
         <p class="code" dir="ltr">{{ code }}</p>
       </div>

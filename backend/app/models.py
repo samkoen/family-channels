@@ -16,8 +16,9 @@ class FamilyRow(Base):
     __tablename__ = "families"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
-    pin_hash: Mapped[str] = mapped_column(String(255))
+    pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     children: Mapped[list["ChildRow"]] = relationship(back_populates="family")

@@ -79,8 +79,9 @@ class FakeYouTube:
 
 
 def setup_module():
-    Base.metadata.drop_all(bind=engine)
-    init_db()
+    from tests.conftest import reset_test_db
+
+    reset_test_db()
 
 
 def _service(db):
@@ -93,7 +94,7 @@ def _service(db):
 
 def test_add_channel_for_child():
     db = SessionLocal()
-    family = FamilyService(FamilyRepository(db)).create_family("2222")
+    family = FamilyService(FamilyRepository(db)).create_family("test-family-2222", "2222")
     child = ChildRepository(db).create(family.id, "Leo", 60, "#444")
     service = _service(db)
     channel = service.add_for_child(child.id, "@DemoChannel")
@@ -105,7 +106,7 @@ def test_add_channel_for_child():
 
 def test_search_videos_in_allowed_channel():
     db = SessionLocal()
-    family = FamilyService(FamilyRepository(db)).create_family("3333")
+    family = FamilyService(FamilyRepository(db)).create_family("test-family-3333", "3333")
     child = ChildRepository(db).create(family.id, "Mia", 60, "#555")
     service = _service(db)
     channel = service.add_for_child(child.id, "@DemoChannel")
@@ -117,7 +118,7 @@ def test_search_videos_in_allowed_channel():
 
 def test_empty_filters_show_all_videos():
     db = SessionLocal()
-    family = FamilyService(FamilyRepository(db)).create_family("4444")
+    family = FamilyService(FamilyRepository(db)).create_family("test-family-4444", "4444")
     child = ChildRepository(db).create(family.id, "Sam", 60, "#666")
     service = _service(db)
     channel = service.add_for_child(child.id, "@DemoChannel")
@@ -128,7 +129,7 @@ def test_empty_filters_show_all_videos():
 
 def test_or_filters_limit_videos_and_playback():
     db = SessionLocal()
-    family = FamilyService(FamilyRepository(db)).create_family("5555")
+    family = FamilyService(FamilyRepository(db)).create_family("test-family-5555", "5555")
     child = ChildRepository(db).create(family.id, "Noa", 60, "#777")
     service = _service(db)
     channel = service.add_for_child(child.id, "@DemoChannel")
@@ -187,7 +188,7 @@ def test_filters_scan_whole_channel_not_only_recent_uploads():
             ]
 
     db = SessionLocal()
-    family = FamilyService(FamilyRepository(db)).create_family("6666")
+    family = FamilyService(FamilyRepository(db)).create_family("test-family-6666", "6666")
     child = ChildRepository(db).create(family.id, "Avi", 60, "#888")
     yt = TrackingYouTube()
     service = ChannelService(ChannelRepository(db), ChildRepository(db), yt)
