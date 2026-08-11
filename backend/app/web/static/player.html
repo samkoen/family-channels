@@ -4,31 +4,64 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
-  <title>Family Channels</title>
+  <title>Family Channels player</title>
   <style>
     html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
-    .wrap { position: fixed; inset: 0; }
-    iframe { width: 100%; height: 100%; border: 0; display: block; }
+    #player { width: 100%; height: 100%; }
+    #dbg {
+      position: fixed; left: 0; right: 0; bottom: 0; max-height: 28%;
+      overflow: auto; margin: 0; padding: 6px 8px;
+      background: rgba(0,0,0,0.85); color: #7dff7d;
+      font: 11px/1.35 monospace; white-space: pre-wrap; z-index: 9999;
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <iframe
-      id="yt"
-      title="video"
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-      allowfullscreen
-      referrerpolicy="strict-origin-when-cross-origin"
-    ></iframe>
-  </div>
+  <div id="player"></div>
+  <pre id="dbg"></pre>
   <script>
-    (function () {
-      var id = new URLSearchParams(window.location.search).get("v") || "";
-      if (!id) return;
-      document.getElementById("yt").src =
-        "https://www.youtube.com/embed/" + encodeURIComponent(id) +
-        "?rel=0&modestbranding=1&playsinline=1&fs=1";
-    })();
+    function dbg(msg) {
+      var line = new Date().toISOString().slice(11, 19) + " " + msg;
+      var el = document.getElementById("dbg");
+      el.textContent += line + "\n";
+      if (window.Android && Android.log) Android.log(line);
+    }
+    var params = new URLSearchParams(window.location.search);
+    var videoId = params.get("v") || "";
+    dbg("static player origin=" + location.origin);
+    dbg("video=" + videoId);
+  </script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    var videoId = new URLSearchParams(window.location.search).get("v") || "";
+    function onYouTubeIframeAPIReady() {
+      dbg("YouTube IFrame API ready");
+      new YT.Player("player", {
+        width: "100%",
+        height: "100%",
+        videoId: videoId,
+        playerVars: {
+          autoplay: 1,
+          playsinline: 1,
+          rel: 0,
+          modestbranding: 1,
+          fs: 1,
+          origin: location.origin
+        },
+        events: {
+          onReady: function (e) {
+            dbg("YT onReady");
+            try { e.target.playVideo(); } catch (err) { dbg("playVideo err: " + err); }
+            if (window.Android && Android.onReady) Android.onReady();
+          },
+          onStateChange: function (e) { dbg("YT state=" + e.data); },
+          onError: function (e) {
+            dbg("YT onError code=" + e.data);
+            if (window.Android && Android.onError) Android.onError(String(e.data));
+          }
+        }
+      });
+    }
   </script>
 </body>
 </html>

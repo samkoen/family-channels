@@ -4,22 +4,68 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
-  <title>Family Channels</title>
+  <title>Family Channels player</title>
   <style>
     html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
-    .wrap { position: fixed; inset: 0; }
-    iframe { width: 100%; height: 100%; border: 0; display: block; }
+    #player { width: 100%; height: 100%; }
+    #dbg {
+      position: fixed; left: 0; right: 0; bottom: 0; max-height: 28%;
+      overflow: auto; margin: 0; padding: 6px 8px;
+      background: rgba(0,0,0,0.85); color: #7dff7d;
+      font: 11px/1.35 monospace; white-space: pre-wrap; z-index: 9999;
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <iframe
-      src="https://www.youtube.com/embed/{{ video_id }}?rel=0&modestbranding=1&playsinline=1&fs=1"
-      title="video"
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-      allowfullscreen
-      referrerpolicy="strict-origin-when-cross-origin"
-    ></iframe>
-  </div>
+  <div id="player"></div>
+  <pre id="dbg"></pre>
+  <script>
+    function dbg(msg) {
+      var line = new Date().toISOString().slice(11, 19) + " " + msg;
+      var el = document.getElementById("dbg");
+      el.textContent += line + "\n";
+      if (window.Android && Android.log) Android.log(line);
+    }
+    dbg("embed page origin=" + location.origin);
+    dbg("video={{ video_id }}");
+  </script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    var player;
+    function onYouTubeIframeAPIReady() {
+      dbg("YouTube IFrame API ready");
+      player = new YT.Player("player", {
+        width: "100%",
+        height: "100%",
+        videoId: "{{ video_id }}",
+        playerVars: {
+          autoplay: 1,
+          playsinline: 1,
+          rel: 0,
+          modestbranding: 1,
+          fs: 1,
+          origin: location.origin
+        },
+        events: {
+          onReady: function (e) {
+            dbg("YT onReady");
+            try { e.target.playVideo(); } catch (err) { dbg("playVideo err: " + err); }
+            if (window.Android && Android.onReady) Android.onReady();
+          },
+          onStateChange: function (e) {
+            dbg("YT state=" + e.data);
+            if (window.Android && Android.onState) Android.onState(String(e.data));
+          },
+          onError: function (e) {
+            dbg("YT onError code=" + e.data);
+            if (window.Android && Android.onError) Android.onError(String(e.data));
+          }
+        }
+      });
+    }
+    setTimeout(function () {
+      if (typeof YT === "undefined") dbg("TIMEOUT: YT undefined after 8s");
+    }, 8000);
+  </script>
 </body>
 </html>

@@ -5,11 +5,18 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.text.method.ScrollingMovementMethod
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -18,6 +25,7 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.core.view.ViewCompat
@@ -31,21 +39,27 @@ import com.familychannels.data.SessionStore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * In-app player: load the same HTTPS embed page as the mobile browser (real navigation).
- * loadDataWithBaseURL fails on this device; Chrome Custom Tabs is rejected by product.
+ * In-app player with always-visible debug log (black screen diagnosis).
  */
 class PlayerActivity : ComponentActivity() {
     private lateinit var webView: WebView
-    private lateinit var statusView: TextView
+    private lateinit var logView: TextView
     private var videoId: String = ""
     private var loadAttempt = 0
+    private var ytReady = false
+    private val handler = Handler(Looper.getMainLooper())
+    private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        WebView.setWebContentsDebuggingEnabled(true)
 
         videoId = intent.getStringExtra(EXTRA_VIDEO_ID).orEmpty()
         if (!VIDEO_ID_RE.matches(videoId)) {
@@ -62,13 +76,13 @@ class PlayerActivity : ComponentActivity() {
             )
         }
 
-        val header = FrameLayout(this).apply {
+        val top = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             )
         }
-        header.addView(
+        top.addView(
             ImageButton(this).apply {
                 setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
                 setBackgroundColor(Color.TRANSPARENT)
@@ -77,14 +91,7 @@ class PlayerActivity : ComponentActivity() {
                 setOnClickListener { finish() }
             },
         )
-        statusView = TextView(this).apply {
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            setPadding(48, 56, 16, 8)
-            text = getString(R.string.player_loading)
-        }
-        header.addView(statusView)
-        root.addView(header)
+        root.addView(top)
 
         webView = WebView(this).apply {
             setBackgroundColor(Color.BLACK)
@@ -95,6 +102,23 @@ class PlayerActivity : ComponentActivity() {
             )
         }
         root.addView(webView)
+
+        val logScroll = ScrollView(this).apply {
+            setBackgroundColor(Color.parseColor("#1A1A1A"))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(160),
+            )
+        }
+        logView = TextView(this).apply {
+            setTextColor(Color.parseColor("#7DFF7D"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            movementMethod = ScrollingMovementMethod()
+        }
+        logScroll.addView(logView)
+        root.addView(logScroll)
+
         setContentView(root)
 
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
@@ -119,15 +143,44 @@ class PlayerActivity : ComponentActivity() {
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
 
-        webView.webChromeClient = WebChromeClient()
+        logDeviceInfo()
+
+        webView.addJavascriptInterface(AndroidBridge(), "Android")
+
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(msg: ConsoleMessage?): Boolean {
+                log("console", "${msg?.message()} (${msg?.sourceId()}:${msg?.lineNumber()})")
+                return true
+            }
+
+            override fun onReceivedTitle(view: WebView?, title: String?) {
+                log("title", title ?: "")
+            }
+        }
 
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                log("pageStart", url ?: "")
+            }
+
             override fun onPageFinished(view: WebView?, url: String?) {
-                if (url?.contains("404") == true || url?.contains("Not Found") == true) {
-                    tryNextLoad()
-                    return
+                log("pageDone", url ?: "")
+                probePage()
+            }
+
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?,
+            ) {
+                log(
+                    "webError",
+                    "main=${request?.isForMainFrame} url=${request?.url} " +
+                        "code=${error?.errorCode} ${error?.description}",
+                )
+                if (request?.isForMainFrame == true) {
+                    handler.postDelayed({ tryNextLoad("mainFrameError") }, 1500)
                 }
-                statusView.visibility = View.GONE
             }
 
             override fun onReceivedHttpError(
@@ -135,10 +188,13 @@ class PlayerActivity : ComponentActivity() {
                 request: WebResourceRequest?,
                 errorResponse: WebResourceResponse?,
             ) {
-                if (request?.isForMainFrame == true) {
-                    val code = errorResponse?.statusCode ?: 0
-                    setStatus(getString(R.string.player_http_error, code))
-                    tryNextLoad()
+                log(
+                    "httpError",
+                    "main=${request?.isForMainFrame} ${request?.url} " +
+                        "status=${errorResponse?.statusCode}",
+                )
+                if (request?.isForMainFrame == true && (errorResponse?.statusCode ?: 0) >= 400) {
+                    handler.postDelayed({ tryNextLoad("http${errorResponse?.statusCode}") }, 1500)
                 }
             }
 
@@ -146,6 +202,7 @@ class PlayerActivity : ComponentActivity() {
                 view: WebView?,
                 request: WebResourceRequest?,
             ): Boolean {
+                val url = request?.url?.toString().orEmpty()
                 val host = request?.url?.host.orEmpty()
                 if (host.isEmpty()) return false
                 val ok =
@@ -155,40 +212,129 @@ class PlayerActivity : ComponentActivity() {
                         host.contains("googlevideo.com") ||
                         host.contains("google.com") ||
                         host.contains("gstatic.com") ||
-                        host.contains("ytimg.com")
+                        host.contains("ytimg.com") ||
+                        host.contains("ggpht.com")
+                if (!ok) log("blockNav", url)
                 return !ok
             }
         }
 
         loadEmbedPage()
+        handler.postDelayed({ if (!ytReady && !isFinishing) tryNextLoad("timeout8s") }, 8000)
         startQuotaHeartbeat()
     }
 
+    private fun logDeviceInfo() {
+        log("videoId", videoId)
+        val wvPkg = WebView.getCurrentWebViewPackage()
+        log("webViewPkg", "${wvPkg?.packageName ?: "?"} ${wvPkg?.versionName ?: ""}")
+        log("webViewUA", webView.settings.userAgentString)
+    }
+
     private fun loadEmbedPage() {
+        ytReady = false
         val url = when (loadAttempt) {
             0 -> "$SERVER_BASE/embed/$videoId"
             1 -> "$SERVER_BASE/static/player.html?v=$videoId"
+            2 -> "https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&fs=1"
             else -> {
-                setStatus(getString(R.string.player_need_deploy))
+                log("giveUp", "all strategies failed")
                 return
             }
         }
-        setStatus(getString(R.string.player_loading_origin, url))
-        webView.loadUrl(url)
+        log("load", "attempt=$loadAttempt url=$url")
+        val headers = if (loadAttempt == 2) {
+            mapOf("Referer" to "$SERVER_BASE/")
+        } else {
+            emptyMap()
+        }
+        webView.loadUrl(url, headers)
     }
 
-    private fun tryNextLoad() {
+    private fun tryNextLoad(reason: String) {
+        if (ytReady || isFinishing) return
+        log("tryNext", "reason=$reason from attempt=$loadAttempt")
         loadAttempt++
-        if (loadAttempt <= 1) {
+        if (loadAttempt <= 2) {
             loadEmbedPage()
+            handler.postDelayed({ if (!ytReady && !isFinishing) tryNextLoad("timeout8s") }, 8000)
         } else {
-            setStatus(getString(R.string.player_need_deploy))
+            log("giveUp", "all strategies failed")
         }
     }
 
-    private fun setStatus(text: String) {
-        statusView.text = text
-        statusView.visibility = View.VISIBLE
+    private fun probePage() {
+        webView.evaluateJavascript(
+            """
+            (function(){
+              var iframe = document.querySelector('iframe');
+              var player = document.getElementById('player');
+              var dbg = document.getElementById('dbg');
+              var lines = [];
+              lines.push('probe origin=' + location.origin);
+              lines.push('probe href=' + location.href);
+              if (iframe) {
+                lines.push('iframe src=' + iframe.src);
+                lines.push('iframe size=' + iframe.offsetWidth + 'x' + iframe.offsetHeight);
+              } else {
+                lines.push('iframe=none');
+              }
+              if (player) lines.push('playerDiv=' + player.offsetWidth + 'x' + player.offsetHeight);
+              if (dbg) lines.push('pageDbg=' + dbg.textContent.slice(-200));
+              if (typeof YT !== 'undefined') lines.push('YT=defined'); else lines.push('YT=undefined');
+              return lines.join(' | ');
+            })();
+            """.trimIndent(),
+        ) { result ->
+            log("probe", result?.trim('"') ?: "")
+        }
+    }
+
+    private fun log(tag: String, msg: String) {
+        val line = "${timeFmt.format(Date())} [$tag] $msg"
+        runOnUiThread {
+            val prev = logView.text?.toString().orEmpty()
+            logView.text = if (prev.isBlank()) line else "$prev\n$line"
+            (logView.parent as? ScrollView)?.post {
+                (logView.parent as ScrollView).fullScroll(View.FOCUS_DOWN)
+            }
+        }
+    }
+
+    private fun dp(v: Int): Int =
+        TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            v.toFloat(),
+            resources.displayMetrics,
+        ).toInt()
+
+    private inner class AndroidBridge {
+        @JavascriptInterface
+        fun log(msg: String) {
+            log("js", msg)
+        }
+
+        @JavascriptInterface
+        fun onReady() {
+            runOnUiThread {
+                ytReady = true
+                handler.removeCallbacksAndMessages(null)
+                log("ytReady", "playback should start")
+            }
+        }
+
+        @JavascriptInterface
+        fun onError(code: String) {
+            runOnUiThread {
+                log("ytError", "code=$code (153=referer, 150/101=restricted)")
+                handler.postDelayed({ if (!ytReady) tryNextLoad("ytError$code") }, 1500)
+            }
+        }
+
+        @JavascriptInterface
+        fun onState(state: String) {
+            runOnUiThread { log("ytState", state) }
+        }
     }
 
     private fun startQuotaHeartbeat() {
@@ -213,6 +359,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
         webView.apply {
             stopLoading()
             loadUrl("about:blank")
