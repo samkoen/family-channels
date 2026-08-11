@@ -26,7 +26,7 @@
     </div>
 
     <p id="videos-error" class="error" hidden>{{ t.videos_load_error }}</p>
-    <ul id="videos-list" class="cards video-cards" hidden></ul>
+    <ul id="videos-list" class="cards" hidden></ul>
     <p id="videos-empty" class="muted" hidden></p>
   </section>
 </main>
@@ -73,7 +73,9 @@
     for (var i = 0; i < videos.length; i++) {
       var v = videos[i];
       var thumb = v.thumbnail_url
-        ? '<img src="' + v.thumbnail_url.replace(/"/g, "") + '" alt="" />'
+        ? '<img class="thumb-video" src="' +
+          v.thumbnail_url.replace(/"/g, "") +
+          '" alt="" />'
         : "";
       var title = String(v.title || "")
         .replace(/&/g, "&amp;")
@@ -83,10 +85,9 @@
         '<li><a href="' +
         playBase +
         encodeURIComponent(v.video_id) +
-        '"><div class="video-thumb">' +
+        '">' +
         thumb +
-        '<span class="play-btn" aria-hidden="true"></span></div>' +
-        '<span class="video-title">' +
+        "<span>" +
         title +
         "</span></a></li>";
     }
