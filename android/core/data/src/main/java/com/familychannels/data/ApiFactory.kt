@@ -13,12 +13,13 @@ object ApiFactory {
         val moshi = Moshi.Builder()
             .add(KotlinJsonAdapterFactory())
             .build()
-        // Render free tier cold start can take 30–60s+.
+        // Render free tier: cold start + first filtered /videos scan can be slow.
         val client = OkHttpClient.Builder()
-            .connectTimeout(90, TimeUnit.SECONDS)
-            .readTimeout(90, TimeUnit.SECONDS)
+            .connectTimeout(120, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
-            .callTimeout(120, TimeUnit.SECONDS)
+            .callTimeout(200, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
             .build()
         return Retrofit.Builder()
             .baseUrl(baseUrl)

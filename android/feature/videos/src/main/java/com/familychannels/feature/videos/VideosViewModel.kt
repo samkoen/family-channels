@@ -28,16 +28,24 @@ class VideosViewModel(
     fun refresh() {
         viewModelScope.launch {
             _state.value = VideosUiState(loading = true)
-            runCatching { loadVideos(channelId) }
-                .onSuccess { list ->
+            // One retry helps when Render is waking or the first YouTube scan is slow.
+            var lastError: Throwable? = null
+            repeat(2) { attempt ->
+                val result = runCatching { loadVideos(channelId) }
+                result.onSuccess { list ->
                     _state.value = VideosUiState(videos = list, loading = false)
+                    return@launch
+                }.onFailure { error ->
+                    lastError = error
+                    if (attempt == 0) {
+                        kotlinx.coroutines.delay(1_500)
+                    }
                 }
-                .onFailure { error ->
-                    _state.value = VideosUiState(
-                        loading = false,
-                        error = error.message ?: "load_failed",
-                    )
-                }
+            }
+            _state.value = VideosUiState(
+                loading = false,
+                error = lastError?.message ?: "load_failed",
+            )
         }
     }
 }

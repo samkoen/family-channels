@@ -2,6 +2,7 @@ package com.familychannels.feature.videos
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,13 +19,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.familychannels.domain.model.VideoItem
 import com.familychannels.ui.components.AppBackground
 import com.familychannels.ui.components.ErrorBanner
@@ -77,6 +81,17 @@ fun VideosScreen(
 
 @Composable
 private fun VideoRow(video: VideoItem, onClick: (VideoItem) -> Unit) {
+    val context = LocalContext.current
+    val thumbUrl = remember(video.videoId, video.thumbnailUrl) {
+        video.thumbnailUrl.takeIf { it.isNotBlank() }
+            ?: "https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg"
+    }
+    val imageModel = remember(thumbUrl) {
+        ImageRequest.Builder(context)
+            .data(thumbUrl)
+            .crossfade(true)
+            .build()
+    }
     SoftCard(
         onClick = { onClick(video) },
         contentPadding = PaddingValues(10.dp),
@@ -86,15 +101,19 @@ private fun VideoRow(video: VideoItem, onClick: (VideoItem) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AsyncImage(
-                model = video.thumbnailUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+            Box(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(TealSoft),
-            )
+            ) {
+                AsyncImage(
+                    model = imageModel,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             Text(
                 video.title,
                 style = MaterialTheme.typography.titleMedium,

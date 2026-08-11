@@ -1,5 +1,6 @@
 package com.familychannels.data.api
 
+import com.squareup.moshi.Json
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -14,10 +15,14 @@ data class SessionResponse(val token: String, val child_id: String, val name: St
 data class ChannelDto(
     val id: String,
     val title: String,
-    val thumbnail_url: String,
+    @Json(name = "thumbnail_url") val thumbnail_url: String = "",
     val youtube_channel_id: String,
 )
-data class VideoDto(val video_id: String, val title: String, val thumbnail_url: String)
+data class VideoDto(
+    val video_id: String,
+    val title: String,
+    @Json(name = "thumbnail_url") val thumbnail_url: String = "",
+)
 data class QuotaDto(
     val minutes_remaining: Int,
     val minutes_used: Int,
