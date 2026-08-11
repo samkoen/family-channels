@@ -3,7 +3,10 @@
 {% block content %}
 <main class="wrap">
   <section class="panel player-panel">
-    <a class="back" href="/watch/channels/{{ channel_id }}">{{ t.back_videos }}</a>
+    <div class="row-between">
+      <a class="back" href="/watch/channels/{{ channel_id }}">{{ t.back_videos }}</a>
+      <span class="live-dot" aria-hidden="true"></span>
+    </div>
     <p class="quota-live" id="quota-live"
        data-remaining="{{ quota.minutes_remaining }}"
        data-used="{{ quota.minutes_used }}"

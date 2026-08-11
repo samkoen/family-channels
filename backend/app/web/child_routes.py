@@ -27,10 +27,36 @@ def _child_session(request: Request) -> dict | None:
     return read_child_token(token)
 
 
+def _clear_child_cookies(response: RedirectResponse) -> RedirectResponse:
+    response.delete_cookie(CHILD_COOKIE)
+    response.delete_cookie(FAMILY_COOKIE)
+    return response
+
+
+def _require_child(
+    request: Request,
+    children: ChildRepository,
+) -> tuple[dict, object] | RedirectResponse:
+    """Return (session, child) or a redirect that clears a stale session cookie."""
+    session = _child_session(request)
+    if not session:
+        return RedirectResponse("/watch", status_code=303)
+    child = children.get(session["child_id"])
+    if not child:
+        return _clear_child_cookies(RedirectResponse("/watch", status_code=303))
+    return session, child
+
+
 @router.get("/watch", response_class=HTMLResponse)
-def child_entry(request: Request):
-    if _child_session(request):
+def child_entry(
+    request: Request,
+    children: ChildRepository = Depends(child_repo),
+):
+    session = _child_session(request)
+    if session and children.get(session["child_id"]):
         return RedirectResponse("/watch/home", status_code=303)
+    if session:
+        return _clear_child_cookies(RedirectResponse("/watch", status_code=303))
     return templates.TemplateResponse("child_join.html", ui_ctx(request, error=None))
 
 
@@ -83,17 +109,20 @@ def child_home(
     quotas: QuotaService = Depends(quota_service),
     children: ChildRepository = Depends(child_repo),
 ):
-    session = _child_session(request)
-    if not session:
-        return RedirectResponse("/watch", status_code=303)
-    child = children.get(session["child_id"])
+    required = _require_child(request, children)
+    if isinstance(required, RedirectResponse):
+        return required
+    session, child = required
     rows = channels.list_for_child(session["child_id"])
-    quota = quotas.get_quota(session["child_id"])
+    try:
+        quota = quotas.get_quota(session["child_id"])
+    except LookupError:
+        return _clear_child_cookies(RedirectResponse("/watch", status_code=303))
     return templates.TemplateResponse(
         "child_home.html",
         ui_ctx(
             request,
-            child_name=child.name if child else "",
+            child_name=child.name,
             channels=rows,
             quota=quota,
         ),
@@ -108,12 +137,17 @@ def child_videos(
     refresh: int = 0,
     channels: ChannelService = Depends(channel_service),
     quotas: QuotaService = Depends(quota_service),
+    children: ChildRepository = Depends(child_repo),
 ):
     """Shell page only — videos load via /videos.json so the UI can show a waiter."""
-    session = _child_session(request)
-    if not session:
-        return RedirectResponse("/watch", status_code=303)
-    quota = quotas.get_quota(session["child_id"])
+    required = _require_child(request, children)
+    if isinstance(required, RedirectResponse):
+        return required
+    session, _child = required
+    try:
+        quota = quotas.get_quota(session["child_id"])
+    except LookupError:
+        return _clear_child_cookies(RedirectResponse("/watch", status_code=303))
     if not quota.can_watch:
         return RedirectResponse("/watch/home", status_code=303)
     channel = channels.channels.get(channel_id)
@@ -140,11 +174,16 @@ def child_videos_json(
     refresh: int = 0,
     channels: ChannelService = Depends(channel_service),
     quotas: QuotaService = Depends(quota_service),
+    children: ChildRepository = Depends(child_repo),
 ):
-    session = _child_session(request)
-    if not session:
+    required = _require_child(request, children)
+    if isinstance(required, RedirectResponse):
         return JSONResponse({"ok": False, "error": "unauthorized"}, status_code=401)
-    quota = quotas.get_quota(session["child_id"])
+    session, _child = required
+    try:
+        quota = quotas.get_quota(session["child_id"])
+    except LookupError:
+        return JSONResponse({"ok": False, "error": "unauthorized"}, status_code=401)
     if not quota.can_watch:
         return JSONResponse({"ok": False, "error": "quota_exceeded"}, status_code=403)
     query = q.strip()
@@ -157,7 +196,9 @@ def child_videos_json(
             videos = channels.list_videos(session["child_id"], channel_id)
     except PermissionError:
         return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
-    except Exception:
+    except Exception as exc:
+        # Surface enough context in server logs without crashing the child UI.
+        print(f"videos.json load_failed channel={channel_id}: {exc!r}")
         return JSONResponse({"ok": False, "error": "load_failed"}, status_code=503)
     return JSONResponse(
         {
@@ -181,11 +222,16 @@ def child_play(
     request: Request,
     channels: ChannelService = Depends(channel_service),
     quotas: QuotaService = Depends(quota_service),
+    children: ChildRepository = Depends(child_repo),
 ):
-    session = _child_session(request)
-    if not session:
-        return RedirectResponse("/watch", status_code=303)
-    quota = quotas.get_quota(session["child_id"])
+    required = _require_child(request, children)
+    if isinstance(required, RedirectResponse):
+        return required
+    session, _child = required
+    try:
+        quota = quotas.get_quota(session["child_id"])
+    except LookupError:
+        return _clear_child_cookies(RedirectResponse("/watch", status_code=303))
     if not quota.can_watch:
         return RedirectResponse("/watch/home", status_code=303)
     try:
@@ -199,7 +245,7 @@ def child_play(
     try:
         # Start of this viewing session counts toward the daily total.
         quota = quotas.heartbeat(session["child_id"], 1)
-    except PermissionError:
+    except (PermissionError, LookupError):
         return RedirectResponse("/watch/home", status_code=303)
     return templates.TemplateResponse(
         "child_player.html",
@@ -216,13 +262,15 @@ def child_play(
 def child_heartbeat(
     request: Request,
     quotas: QuotaService = Depends(quota_service),
+    children: ChildRepository = Depends(child_repo),
 ):
-    session = _child_session(request)
-    if not session:
-        return RedirectResponse("/watch", status_code=303)
+    required = _require_child(request, children)
+    if isinstance(required, RedirectResponse):
+        return required
+    session, _child = required
     try:
         quotas.heartbeat(session["child_id"], 1)
-    except PermissionError:
+    except (PermissionError, LookupError):
         return RedirectResponse("/watch/home", status_code=303)
     return RedirectResponse(request.headers.get("referer", "/watch/home"), status_code=303)
 
@@ -231,10 +279,12 @@ def child_heartbeat(
 async def child_heartbeat_json(
     request: Request,
     quotas: QuotaService = Depends(quota_service),
+    children: ChildRepository = Depends(child_repo),
 ):
-    session = _child_session(request)
-    if not session:
+    required = _require_child(request, children)
+    if isinstance(required, RedirectResponse):
         return JSONResponse({"ok": False, "can_watch": False}, status_code=401)
+    session, _child = required
     minutes = 1
     try:
         payload = await request.json()
@@ -244,13 +294,15 @@ async def child_heartbeat_json(
         minutes = 1
     try:
         quota = quotas.heartbeat(session["child_id"], minutes)
+    except LookupError:
+        return JSONResponse({"ok": False, "can_watch": False}, status_code=401)
     except PermissionError:
         return JSONResponse(
             {
                 "ok": False,
                 "can_watch": False,
                 "minutes_remaining": 0,
-                "minutes_used": quotas.get_quota(session["child_id"]).minutes_used,
+                "minutes_used": 0,
             }
         )
     return JSONResponse(

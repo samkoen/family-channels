@@ -1,8 +1,8 @@
 package com.familychannels.feature.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,12 +12,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -25,17 +24,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.familychannels.domain.model.Channel
 import com.familychannels.domain.model.WatchQuota
 import com.familychannels.ui.components.AppBackground
+import com.familychannels.ui.components.BrandMark
+import com.familychannels.ui.components.ChevronGlyph
+import com.familychannels.ui.components.ErrorBanner
 import com.familychannels.ui.components.LoadingPanel
-import com.familychannels.ui.components.QuotaBar
+import com.familychannels.ui.components.QuotaBadge
+import com.familychannels.ui.components.ScreenHeader
+import com.familychannels.ui.components.ScreenScaffold
+import com.familychannels.ui.components.SoftCard
 import com.familychannels.ui.i18n.AppStrings.messageForError
 import com.familychannels.ui.i18n.Strings
-import com.familychannels.ui.theme.Danger
+import com.familychannels.ui.theme.TealSoft
 
 @Composable
 fun HomeScreen(
@@ -47,87 +55,105 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsState()
     AppBackground(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-        ) {
-            Text(strings.channels, style = MaterialTheme.typography.headlineLarge)
-            Spacer(modifier = Modifier.height(12.dp))
-            QuotaHeader(quotaLabel, quota)
-            if (state.loading) {
-                LoadingPanel(
-                    title = strings.serverWaking,
-                    hint = strings.serverWakingHint,
-                    modifier = Modifier.padding(top = 32.dp),
+        ScreenScaffold {
+            ScreenHeader(
+                title = strings.channels,
+                subtitle = strings.appName,
+                trailing = { BrandMark(size = 44.dp) },
+            )
+            Spacer(modifier = Modifier.height(18.dp))
+            if (quota != null) {
+                QuotaBadge(
+                    label = quotaLabel,
+                    remaining = quota.minutesRemaining,
+                    limit = quota.dailyLimitMinutes,
+                    exhausted = !quota.canWatch,
                 )
             } else {
-                LazyColumn(
-                    modifier = Modifier.padding(top = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp),
-                ) {
-                    items(state.channels) { channel ->
-                        ChannelRow(channel, onChannelClick)
+                Text(
+                    quotaLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            when {
+                state.loading -> {
+                    LoadingPanel(
+                        title = strings.serverWaking,
+                        hint = strings.serverWakingHint,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.padding(top = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 28.dp),
+                    ) {
+                        items(state.channels) { channel ->
+                            ChannelRow(channel, onChannelClick)
+                        }
                     }
                 }
             }
             state.error?.let {
-                Text(
-                    strings.messageForError(it),
-                    color = MaterialTheme.colorScheme.error,
-                )
+                Spacer(modifier = Modifier.height(12.dp))
+                ErrorBanner(strings.messageForError(it))
             }
-        }
-    }
-}
-
-@Composable
-private fun QuotaHeader(label: String, quota: WatchQuota?) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (quota?.canWatch == false) Danger else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (quota != null && quota.canWatch) {
-            QuotaBar(
-                remaining = quota.minutesRemaining,
-                limit = quota.dailyLimitMinutes,
-                modifier = Modifier.fillMaxWidth(0.45f),
-            )
         }
     }
 }
 
 @Composable
 private fun ChannelRow(channel: Channel, onClick: (Channel) -> Unit) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .clickable { onClick(channel) },
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp,
-        shadowElevation = 2.dp,
-        shape = RoundedCornerShape(14.dp),
+    SoftCard(
+        onClick = { onClick(channel) },
+        contentPadding = PaddingValues(12.dp),
     ) {
         Row(
-            modifier = Modifier.padding(10.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            AsyncImage(
-                model = channel.thumbnailUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+            Box(
                 modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
-            Text(channel.title, style = MaterialTheme.typography.titleLarge)
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(TealSoft),
+            ) {
+                AsyncImage(
+                    model = channel.thumbnailUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.18f)),
+                            ),
+                        ),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    channel.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(TealSoft),
+                contentAlignment = Alignment.Center,
+            ) {
+                ChevronGlyph()
+            }
         }
     }
 }

@@ -50,12 +50,19 @@ def home(request: Request):
 
 
 @router.post("/create")
-def create_family(
+async def create_family(
     request: Request,
-    pin: str = Form(...),
-    pin_confirm: str = Form(...),
     families: FamilyService = Depends(family_service),
 ):
+    form = await request.form()
+    pin = str(form.get("pin") or "").strip()
+    pin_confirm = str(form.get("pin_confirm") or "").strip()
+    if not pin or not pin_confirm:
+        return templates.TemplateResponse(
+            "create.html",
+            ui_ctx(request, error="invalid_pin"),
+            status_code=400,
+        )
     if pin != pin_confirm:
         return templates.TemplateResponse(
             "create.html",
@@ -91,12 +98,19 @@ def login_page(request: Request):
 
 
 @router.post("/login")
-def login_submit(
+async def login_submit(
     request: Request,
-    family_code: str = Form(...),
-    pin: str = Form(...),
     families: FamilyService = Depends(family_service),
 ):
+    form = await request.form()
+    family_code = str(form.get("family_code") or "").strip()
+    pin = str(form.get("pin") or "").strip()
+    if not family_code or not pin:
+        return templates.TemplateResponse(
+            "login.html",
+            ui_ctx(request, error="invalid_credentials"),
+            status_code=400,
+        )
     try:
         family = families.authenticate(family_code, pin)
     except PermissionError:

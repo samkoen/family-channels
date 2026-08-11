@@ -3,10 +3,13 @@
 {% block content %}
 <main class="shell">
   <section class="panel auth">
-    <div class="lang-bar" aria-label="Language">
-      <a href="/lang/fr" class="{% if lang == 'fr' %}is-active{% endif %}" hreflang="fr" lang="fr">FR</a>
-      <a href="/lang/en" class="{% if lang == 'en' %}is-active{% endif %}" hreflang="en" lang="en">EN</a>
-      <a href="/lang/he" class="{% if lang == 'he' %}is-active{% endif %}" hreflang="he" lang="he">HE</a>
+    <div class="auth-head">
+      <span class="logo-mark" aria-hidden="true"></span>
+      <div class="lang-bar" aria-label="Language">
+        <a href="/lang/fr" class="{% if lang == 'fr' %}is-active{% endif %}" hreflang="fr" lang="fr">FR</a>
+        <a href="/lang/en" class="{% if lang == 'en' %}is-active{% endif %}" hreflang="en" lang="en">EN</a>
+        <a href="/lang/he" class="{% if lang == 'he' %}is-active{% endif %}" hreflang="he" lang="he">HE</a>
+      </div>
     </div>
     <p class="brand-hero" dir="ltr">Family Channels</p>
     <p class="lede">{{ t.watch_join_lede }}</p>

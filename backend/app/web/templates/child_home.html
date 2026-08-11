@@ -4,19 +4,28 @@
 <main class="wrap">
   <section class="panel">
     <div class="row-between">
-      <h1>{{ child_name }}</h1>
+      <div>
+        <h1>{{ child_name }}</h1>
+        <p class="muted" style="margin:0">Family Channels</p>
+      </div>
       <form method="post" action="/watch/leave"><button type="submit" class="ghost">{{ t.leave }}</button></form>
     </div>
     {% set pct = ((quota.minutes_remaining / quota.daily_limit_minutes * 100) if quota.daily_limit_minutes else 0)|int %}
     {% if quota.can_watch %}
-    <div class="quota">
+    <div class="quota-badge">
+      <div class="quota-badge-top">
+        <span>{{ t.min_used.format(used=quota.minutes_used, limit=quota.daily_limit_minutes) }} · {{ t.min_left.format(n=quota.minutes_remaining) }}</span>
+        <span class="quota-pct">{{ pct }}%</span>
+      </div>
       <div class="quota-bar" aria-hidden="true"><span style="width: {{ pct }}%"></span></div>
-      <span>{{ t.min_used.format(used=quota.minutes_used, limit=quota.daily_limit_minutes) }} · {{ t.min_left.format(n=quota.minutes_remaining) }}</span>
     </div>
     {% else %}
-    <div class="quota empty">
+    <div class="quota-badge empty">
+      <div class="quota-badge-top">
+        <span>{{ t.time_over }}</span>
+        <span class="quota-pct">0%</span>
+      </div>
       <div class="quota-bar" aria-hidden="true"><span></span></div>
-      <span>{{ t.time_over }}</span>
     </div>
     {% endif %}
     <ul class="cards">
@@ -25,12 +34,17 @@
         {% if quota.can_watch %}
         <a href="/watch/channels/{{ ch.id }}">
           {% if ch.thumbnail_url %}<img src="{{ ch.thumbnail_url }}" alt="" />{% endif %}
-          <span>{{ ch.title }}</span>
+          <div class="channel-meta">
+            <span>{{ ch.title }}</span>
+            <span class="chevron" aria-hidden="true"></span>
+          </div>
         </a>
         {% else %}
         <div class="disabled">
           {% if ch.thumbnail_url %}<img src="{{ ch.thumbnail_url }}" alt="" />{% endif %}
-          <span>{{ ch.title }}</span>
+          <div class="channel-meta">
+            <span>{{ ch.title }}</span>
+          </div>
         </div>
         {% endif %}
       </li>

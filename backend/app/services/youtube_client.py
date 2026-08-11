@@ -177,26 +177,30 @@ class YouTubeClient:
         return rows, data.get("nextPageToken")
 
     def _video_details(self, video_ids: list[str]) -> list[dict]:
-        if not video_ids:
+        # videos.list accepts at most 50 ids; search can return slightly more.
+        clean = [vid for vid in video_ids if vid]
+        if not clean:
             return []
-        data = self._get(
-            "videos",
-            {
-                "part": "snippet,contentDetails",
-                "id": ",".join(video_ids),
-            },
-        )
-        result = []
-        for item in data.get("items") or []:
-            result.append(
+        result: list[dict] = []
+        for i in range(0, len(clean), 50):
+            batch = clean[i : i + 50]
+            data = self._get(
+                "videos",
                 {
-                    "video_id": item["id"],
-                    "title": item["snippet"]["title"],
-                    "thumbnail_url": _thumb(item["snippet"]),
-                    "duration": item["contentDetails"]["duration"],
-                    "channel_id": item["snippet"].get("channelId", ""),
-                }
+                    "part": "snippet,contentDetails",
+                    "id": ",".join(batch),
+                },
             )
+            for item in data.get("items") or []:
+                result.append(
+                    {
+                        "video_id": item["id"],
+                        "title": item["snippet"]["title"],
+                        "thumbnail_url": _thumb(item["snippet"]),
+                        "duration": item["contentDetails"]["duration"],
+                        "channel_id": item["snippet"].get("channelId", ""),
+                    }
+                )
         return result
 
     def video_belongs_to_channel(self, video_id: str, youtube_channel_id: str) -> bool:

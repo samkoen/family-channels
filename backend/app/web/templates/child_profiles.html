@@ -3,6 +3,9 @@
 {% block content %}
 <main class="shell">
   <section class="panel auth">
+    <div class="auth-head">
+      <span class="logo-mark" aria-hidden="true"></span>
+    </div>
     <h1>{{ t.who_watching }}</h1>
     <p class="lede">{{ t.pick_profile }}</p>
     <div class="stack">
@@ -12,6 +15,7 @@
         <button type="submit" class="profile">
           <span class="avatar" style="background: {{ child.avatar_color|default('#4A5568') }}">{{ child.name[:1]|upper }}</span>
           {{ child.name }}
+          <span class="chevron" aria-hidden="true"></span>
         </button>
       </form>
       {% else %}

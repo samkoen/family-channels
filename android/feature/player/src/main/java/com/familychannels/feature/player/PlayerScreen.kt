@@ -1,23 +1,41 @@
 package com.familychannels.feature.player
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.familychannels.ui.components.AppBackground
 import com.familychannels.ui.i18n.Strings
+import com.familychannels.ui.theme.SurfaceWhite
+import com.familychannels.ui.theme.Teal
+import com.familychannels.ui.theme.TealSoft
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
@@ -33,31 +51,81 @@ fun PlayerScreen(
     onHeartbeat: () -> Unit,
 ) {
     val safeId = remember(videoId) { videoId.takeIf { it in allowedIds } }
+    val panelShape = RoundedCornerShape(22.dp)
     AppBackground(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
-            TextButton(onClick = onFinished, modifier = Modifier.padding(horizontal = 8.dp)) {
-                Text(strings.back, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (safeId == null) {
-                Text(
-                    "Unavailable",
-                    modifier = Modifier.padding(20.dp),
-                    style = MaterialTheme.typography.bodyLarge,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = onFinished,
+                    shape = RoundedCornerShape(999.dp),
+                ) {
+                    Text(
+                        "←  ${strings.back}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE85D4C)),
                 )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            if (safeId == null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = SurfaceWhite,
+                    shape = panelShape,
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.85f)),
+                ) {
+                    Text(
+                        "Unavailable",
+                        modifier = Modifier.padding(20.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
             } else {
-                LockedYouTubePlayer(
-                    videoId = safeId,
-                    onEnded = onFinished,
-                    onPlayingTick = onHeartbeat,
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                )
+                        .shadow(
+                            elevation = 10.dp,
+                            shape = panelShape,
+                            clip = false,
+                            ambientColor = Teal.copy(alpha = 0.14f),
+                            spotColor = Teal.copy(alpha = 0.2f),
+                        ),
+                    color = SurfaceWhite.copy(alpha = 0.96f),
+                    shape = panelShape,
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.85f)),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(TealSoft),
+                    ) {
+                        LockedYouTubePlayer(
+                            videoId = safeId,
+                            onEnded = onFinished,
+                            onPlayingTick = onHeartbeat,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
             }
         }
     }

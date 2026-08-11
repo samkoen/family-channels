@@ -11,7 +11,10 @@
 </head>
 <body class="{% block body_class %}{% endblock %}">
   <header class="top">
-    <a class="brand brand-mark" href="/" dir="ltr">Family Channels</a>
+    <a class="brand brand-mark" href="/" dir="ltr">
+      <span class="logo-mark" aria-hidden="true"></span>
+      Family Channels
+    </a>
     <nav class="lang-nav" aria-label="Language">
       <a href="/lang/fr" class="{% if lang == 'fr' %}is-active{% endif %}" hreflang="fr" lang="fr">FR</a>
       <a href="/lang/en" class="{% if lang == 'en' %}is-active{% endif %}" hreflang="en" lang="en">EN</a>
