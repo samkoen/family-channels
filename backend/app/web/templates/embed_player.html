@@ -9,6 +9,7 @@
     html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
     #player { width: 100%; height: 100%; }
     #dbg {
+      display: none; /* passer SHOW_DEBUG_UI à true dans le script pour réafficher */
       position: fixed; left: 0; right: 0; bottom: 0; max-height: 28%;
       overflow: auto; margin: 0; padding: 6px 8px;
       background: rgba(0,0,0,0.85); color: #7dff7d;
@@ -20,10 +21,16 @@
   <div id="player"></div>
   <pre id="dbg"></pre>
   <script>
+    var SHOW_DEBUG_UI = false;
     function dbg(msg) {
       var line = new Date().toISOString().slice(11, 19) + " " + msg;
-      var el = document.getElementById("dbg");
-      el.textContent += line + "\n";
+      if (SHOW_DEBUG_UI) {
+        var el = document.getElementById("dbg");
+        if (el) {
+          el.style.display = "block";
+          el.textContent += line + "\n";
+        }
+      }
       if (window.Android && Android.log) Android.log(line);
     }
     dbg("embed page origin=" + location.origin);

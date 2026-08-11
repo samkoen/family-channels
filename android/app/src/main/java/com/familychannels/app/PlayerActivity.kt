@@ -4,17 +4,20 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.method.ScrollingMovementMethod
+import android.util.Log
 import android.util.TypedValue
-import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
+import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -22,9 +25,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.net.http.SslError
 import android.widget.FrameLayout
-import android.widget.ImageButton
-import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -44,14 +46,16 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * In-app player with always-visible debug log (black screen diagnosis).
+ * In-app player. Logs showed href=about:blank → loadUrl was called before WebView resumed.
  */
 class PlayerActivity : ComponentActivity() {
     private lateinit var webView: WebView
-    private lateinit var logView: TextView
+    private var logView: TextView? = null
     private var videoId: String = ""
     private var loadAttempt = 0
     private var ytReady = false
+    private var loadStarted = false
+    private var lastFinishedUrl: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
 
@@ -67,58 +71,37 @@ class PlayerActivity : ComponentActivity() {
             return
         }
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+        val root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-            )
         }
-
-        val top = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            )
-        }
-        top.addView(
-            ImageButton(this).apply {
-                setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-                setBackgroundColor(Color.TRANSPARENT)
-                setColorFilter(Color.WHITE)
-                contentDescription = "Back"
-                setOnClickListener { finish() }
-            },
-        )
-        root.addView(top)
 
         webView = WebView(this).apply {
             setBackgroundColor(Color.BLACK)
-            layoutParams = LinearLayout.LayoutParams(
+            layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1f,
+                ViewGroup.LayoutParams.MATCH_PARENT,
             )
         }
         root.addView(webView)
 
-        val logScroll = ScrollView(this).apply {
-            setBackgroundColor(Color.parseColor("#1A1A1A"))
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(160),
-            )
+        if (SHOW_DEBUG_UI) {
+            val logScroll = ScrollView(this).apply {
+                setBackgroundColor(Color.parseColor("#1A1A1A"))
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(160),
+                    android.view.Gravity.BOTTOM,
+                )
+            }
+            logView = TextView(this).apply {
+                setTextColor(Color.parseColor("#7DFF7D"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+                setPadding(dp(8), dp(6), dp(8), dp(6))
+                movementMethod = ScrollingMovementMethod()
+            }
+            logScroll.addView(logView)
+            root.addView(logScroll)
         }
-        logView = TextView(this).apply {
-            setTextColor(Color.parseColor("#7DFF7D"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-            movementMethod = ScrollingMovementMethod()
-        }
-        logScroll.addView(logView)
-        root.addView(logScroll)
-
         setContentView(root)
 
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
@@ -138,12 +121,15 @@ class PlayerActivity : ComponentActivity() {
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             loadWithOverviewMode = true
             useWideViewPort = true
+            @Suppress("DEPRECATION")
+            databaseEnabled = true
             userAgentString =
                 "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
 
         logDeviceInfo()
+        logNetwork()
 
         webView.addJavascriptInterface(AndroidBridge(), "Android")
 
@@ -154,7 +140,9 @@ class PlayerActivity : ComponentActivity() {
             }
 
             override fun onReceivedTitle(view: WebView?, title: String?) {
-                log("title", title ?: "")
+                if (!title.isNullOrBlank() && title != "about:blank") {
+                    log("title", title)
+                }
             }
         }
 
@@ -164,8 +152,22 @@ class PlayerActivity : ComponentActivity() {
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
+                lastFinishedUrl = url
                 log("pageDone", url ?: "")
-                probePage()
+                hideWebDebugPanel()
+                if (isRealUrl(url)) {
+                    probePage()
+                    scheduleAttemptTimeout()
+                }
+            }
+
+            override fun onReceivedSslError(
+                view: WebView?,
+                handler: SslErrorHandler?,
+                error: SslError?,
+            ) {
+                log("sslError", "${error?.primaryError} ${error?.url}")
+                handler?.proceed()
             }
 
             override fun onReceivedError(
@@ -179,7 +181,7 @@ class PlayerActivity : ComponentActivity() {
                         "code=${error?.errorCode} ${error?.description}",
                 )
                 if (request?.isForMainFrame == true) {
-                    handler.postDelayed({ tryNextLoad("mainFrameError") }, 1500)
+                    handler.postDelayed({ tryNextLoad("mainFrameError") }, 1200)
                 }
             }
 
@@ -194,7 +196,7 @@ class PlayerActivity : ComponentActivity() {
                         "status=${errorResponse?.statusCode}",
                 )
                 if (request?.isForMainFrame == true && (errorResponse?.statusCode ?: 0) >= 400) {
-                    handler.postDelayed({ tryNextLoad("http${errorResponse?.statusCode}") }, 1500)
+                    handler.postDelayed({ tryNextLoad("http${errorResponse?.statusCode}") }, 1200)
                 }
             }
 
@@ -205,24 +207,48 @@ class PlayerActivity : ComponentActivity() {
                 val url = request?.url?.toString().orEmpty()
                 val host = request?.url?.host.orEmpty()
                 if (host.isEmpty()) return false
-                val ok =
-                    host.contains(SERVER_HOST) ||
-                        host.contains("youtube.com") ||
-                        host.contains("youtube-nocookie.com") ||
-                        host.contains("googlevideo.com") ||
-                        host.contains("google.com") ||
-                        host.contains("gstatic.com") ||
-                        host.contains("ytimg.com") ||
-                        host.contains("ggpht.com")
+                val ok = isAllowedHost(host)
                 if (!ok) log("blockNav", url)
                 return !ok
             }
         }
 
-        loadEmbedPage()
-        handler.postDelayed({ if (!ytReady && !isFinishing) tryNextLoad("timeout8s") }, 8000)
         startQuotaHeartbeat()
     }
+
+    override fun onResume() {
+        super.onResume()
+        webView.onResume()
+        webView.resumeTimers()
+        if (!loadStarted) {
+            loadStarted = true
+            webView.post {
+                log("layout", "webView ${webView.width}x${webView.height} — starting load")
+                loadEmbedPage()
+            }
+        }
+    }
+
+    override fun onPause() {
+        webView.onPause()
+        webView.pauseTimers()
+        super.onPause()
+    }
+
+    private fun isRealUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        return url != "about:blank" && !url.startsWith("data:")
+    }
+
+    private fun isAllowedHost(host: String): Boolean =
+        host.contains(SERVER_HOST) ||
+            host.contains("youtube.com") ||
+            host.contains("youtube-nocookie.com") ||
+            host.contains("googlevideo.com") ||
+            host.contains("google.com") ||
+            host.contains("gstatic.com") ||
+            host.contains("ytimg.com") ||
+            host.contains("ggpht.com")
 
     private fun logDeviceInfo() {
         log("videoId", videoId)
@@ -231,24 +257,45 @@ class PlayerActivity : ComponentActivity() {
         log("webViewUA", webView.settings.userAgentString)
     }
 
+    private fun logNetwork() {
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        val net = cm.activeNetwork
+        val caps = cm.getNetworkCapabilities(net)
+        val online = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        log("network", if (online) "online" else "OFFLINE")
+    }
+
     private fun loadEmbedPage() {
         ytReady = false
+        handler.removeCallbacksAndMessages(null)
+
         val url = when (loadAttempt) {
             0 -> "$SERVER_BASE/embed/$videoId"
             1 -> "$SERVER_BASE/static/player.html?v=$videoId"
             2 -> "https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&fs=1"
             else -> {
-                log("giveUp", "all strategies failed")
+                log("giveUp", "all strategies failed — copiez les logs")
                 return
             }
         }
         log("load", "attempt=$loadAttempt url=$url")
-        val headers = if (loadAttempt == 2) {
-            mapOf("Referer" to "$SERVER_BASE/")
+        if (loadAttempt == 2) {
+            webView.loadUrl(url, mapOf("Referer" to "$SERVER_BASE/"))
         } else {
-            emptyMap()
+            webView.loadUrl(url)
         }
-        webView.loadUrl(url, headers)
+        scheduleAttemptTimeout()
+    }
+
+    private fun scheduleAttemptTimeout() {
+        handler.removeCallbacksAndMessages(null)
+        handler.postDelayed({
+            if (ytReady || isFinishing) return@postDelayed
+            if (!isRealUrl(lastFinishedUrl)) {
+                log("timeout", "still on $lastFinishedUrl after 25s")
+                tryNextLoad("timeout25s")
+            }
+        }, 25_000)
     }
 
     private fun tryNextLoad(reason: String) {
@@ -256,10 +303,9 @@ class PlayerActivity : ComponentActivity() {
         log("tryNext", "reason=$reason from attempt=$loadAttempt")
         loadAttempt++
         if (loadAttempt <= 2) {
-            loadEmbedPage()
-            handler.postDelayed({ if (!ytReady && !isFinishing) tryNextLoad("timeout8s") }, 8000)
+            webView.post { loadEmbedPage() }
         } else {
-            log("giveUp", "all strategies failed")
+            log("giveUp", "all strategies failed — copiez les logs")
         }
     }
 
@@ -267,21 +313,16 @@ class PlayerActivity : ComponentActivity() {
         webView.evaluateJavascript(
             """
             (function(){
+              var lines = [];
+              lines.push('origin=' + location.origin);
+              lines.push('href=' + location.href);
               var iframe = document.querySelector('iframe');
               var player = document.getElementById('player');
-              var dbg = document.getElementById('dbg');
-              var lines = [];
-              lines.push('probe origin=' + location.origin);
-              lines.push('probe href=' + location.href);
-              if (iframe) {
-                lines.push('iframe src=' + iframe.src);
-                lines.push('iframe size=' + iframe.offsetWidth + 'x' + iframe.offsetHeight);
-              } else {
-                lines.push('iframe=none');
-              }
+              if (iframe) lines.push('iframe=' + iframe.offsetWidth + 'x' + iframe.offsetHeight);
               if (player) lines.push('playerDiv=' + player.offsetWidth + 'x' + player.offsetHeight);
-              if (dbg) lines.push('pageDbg=' + dbg.textContent.slice(-200));
-              if (typeof YT !== 'undefined') lines.push('YT=defined'); else lines.push('YT=undefined');
+              if (typeof YT !== 'undefined') lines.push('YT=ok'); else lines.push('YT=missing');
+              var dbg = document.getElementById('dbg');
+              if (dbg && dbg.textContent) lines.push('dbgTail=' + dbg.textContent.slice(-120));
               return lines.join(' | ');
             })();
             """.trimIndent(),
@@ -290,13 +331,28 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    private fun hideWebDebugPanel() {
+        webView.evaluateJavascript(
+            """
+            (function(){
+              var el = document.getElementById('dbg');
+              if (el) el.style.display = 'none';
+            })();
+            """.trimIndent(),
+            null,
+        )
+    }
+
     private fun log(tag: String, msg: String) {
         val line = "${timeFmt.format(Date())} [$tag] $msg"
+        Log.d(LOG_TAG, line)
+        if (!SHOW_DEBUG_UI) return
         runOnUiThread {
-            val prev = logView.text?.toString().orEmpty()
-            logView.text = if (prev.isBlank()) line else "$prev\n$line"
-            (logView.parent as? ScrollView)?.post {
-                (logView.parent as ScrollView).fullScroll(View.FOCUS_DOWN)
+            val view = logView ?: return@runOnUiThread
+            val prev = view.text?.toString().orEmpty()
+            view.text = if (prev.isBlank()) line else "$prev\n$line"
+            (view.parent as? ScrollView)?.post {
+                (view.parent as ScrollView).fullScroll(View.FOCUS_DOWN)
             }
         }
     }
@@ -319,15 +375,15 @@ class PlayerActivity : ComponentActivity() {
             runOnUiThread {
                 ytReady = true
                 handler.removeCallbacksAndMessages(null)
-                log("ytReady", "playback should start")
+                log("ytReady", "OK")
             }
         }
 
         @JavascriptInterface
         fun onError(code: String) {
             runOnUiThread {
-                log("ytError", "code=$code (153=referer, 150/101=restricted)")
-                handler.postDelayed({ if (!ytReady) tryNextLoad("ytError$code") }, 1500)
+                log("ytError", "code=$code (153=referer)")
+                handler.postDelayed({ if (!ytReady) tryNextLoad("ytError$code") }, 1200)
             }
         }
 
@@ -348,16 +404,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    override fun onPause() {
-        webView.onPause()
-        super.onPause()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        webView.onResume()
-    }
-
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         webView.apply {
@@ -370,6 +416,9 @@ class PlayerActivity : ComponentActivity() {
     }
 
     companion object {
+        /** Mettre à true pour réafficher la barre de logs verte en bas de l'écran. */
+        private const val SHOW_DEBUG_UI = false
+        private const val LOG_TAG = "FamilyPlayer"
         private const val EXTRA_VIDEO_ID = "video_id"
         private const val SERVER_HOST = "family-channels.onrender.com"
         private const val SERVER_BASE = "https://$SERVER_HOST"
