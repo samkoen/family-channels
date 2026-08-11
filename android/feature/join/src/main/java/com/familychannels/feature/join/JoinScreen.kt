@@ -30,7 +30,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.familychannels.domain.model.ChildProfile
 import com.familychannels.ui.components.AppBackground
+import com.familychannels.ui.components.LoadingPanel
 import com.familychannels.ui.components.ProfileAvatar
+import com.familychannels.ui.i18n.AppStrings.messageForError
 import com.familychannels.ui.i18n.Strings
 import com.familychannels.ui.theme.Teal
 
@@ -59,17 +61,25 @@ fun JoinScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(strings.appName, style = MaterialTheme.typography.displayLarge)
-                TextButton(onClick = onToggleLang) {
+                TextButton(onClick = onToggleLang, enabled = !state.loading) {
                     Text(strings.language, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            if (state.children.isEmpty()) {
+            if (state.loading) {
+                LoadingPanel(
+                    title = strings.serverWaking,
+                    hint = strings.serverWakingHint,
+                )
+            } else if (state.children.isEmpty()) {
                 JoinCodeForm(state, strings, viewModel)
             } else {
                 ProfilePicker(state.children, strings, viewModel)
             }
             state.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
+                Text(
+                    strings.messageForError(it),
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }

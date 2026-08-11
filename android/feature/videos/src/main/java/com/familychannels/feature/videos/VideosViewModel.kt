@@ -32,8 +32,11 @@ class VideosViewModel(
                 .onSuccess { list ->
                     _state.value = VideosUiState(videos = list, loading = false)
                 }
-                .onFailure {
-                    _state.value = VideosUiState(loading = false, error = "load_failed")
+                .onFailure { error ->
+                    _state.value = VideosUiState(
+                        loading = false,
+                        error = error.message ?: "load_failed",
+                    )
                 }
         }
     }

@@ -85,7 +85,16 @@ class FamilyRepositoryImpl(
             return block()
         } catch (e: SocketTimeoutException) {
             throw IllegalStateException("timeout_server_waking", e)
+        } catch (e: java.net.UnknownHostException) {
+            throw IllegalStateException("network_error", e)
+        } catch (e: java.net.ConnectException) {
+            // Render cold start / connection reset while waking.
+            throw IllegalStateException("timeout_server_waking", e)
         } catch (e: IOException) {
+            val msg = e.message.orEmpty().lowercase()
+            if ("timeout" in msg || "failed to connect" in msg) {
+                throw IllegalStateException("timeout_server_waking", e)
+            }
             throw IllegalStateException("network_error", e)
         } catch (e: HttpException) {
             val msg = when (e.code()) {

@@ -31,7 +31,9 @@ import coil.compose.AsyncImage
 import com.familychannels.domain.model.Channel
 import com.familychannels.domain.model.WatchQuota
 import com.familychannels.ui.components.AppBackground
+import com.familychannels.ui.components.LoadingPanel
 import com.familychannels.ui.components.QuotaBar
+import com.familychannels.ui.i18n.AppStrings.messageForError
 import com.familychannels.ui.i18n.Strings
 import com.familychannels.ui.theme.Danger
 
@@ -54,17 +56,28 @@ fun HomeScreen(
             Text(strings.channels, style = MaterialTheme.typography.headlineLarge)
             Spacer(modifier = Modifier.height(12.dp))
             QuotaHeader(quotaLabel, quota)
-            LazyColumn(
-                modifier = Modifier.padding(top = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(bottom = 24.dp),
-            ) {
-                items(state.channels) { channel ->
-                    ChannelRow(channel, onChannelClick)
+            if (state.loading) {
+                LoadingPanel(
+                    title = strings.serverWaking,
+                    hint = strings.serverWakingHint,
+                    modifier = Modifier.padding(top = 32.dp),
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.padding(top = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                ) {
+                    items(state.channels) { channel ->
+                        ChannelRow(channel, onChannelClick)
+                    }
                 }
             }
             state.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
+                Text(
+                    strings.messageForError(it),
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }

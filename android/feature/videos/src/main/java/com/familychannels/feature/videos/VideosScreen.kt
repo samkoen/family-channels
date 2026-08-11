@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.familychannels.domain.model.VideoItem
 import com.familychannels.ui.components.AppBackground
+import com.familychannels.ui.components.LoadingPanel
+import com.familychannels.ui.i18n.AppStrings.messageForError
 import com.familychannels.ui.i18n.Strings
 
 @Composable
@@ -48,12 +50,28 @@ fun VideosScreen(
         ) {
             Text(strings.videos, style = MaterialTheme.typography.headlineLarge)
             Spacer(modifier = Modifier.height(16.dp))
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(bottom = 24.dp),
-            ) {
-                items(state.videos, key = { it.videoId }) { video ->
-                    VideoRow(video, onVideoClick)
+            when {
+                state.loading -> {
+                    LoadingPanel(
+                        title = strings.serverWaking,
+                        hint = strings.serverWakingHint,
+                    )
+                }
+                state.error != null -> {
+                    Text(
+                        strings.messageForError(state.error),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                else -> {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(bottom = 24.dp),
+                    ) {
+                        items(state.videos, key = { it.videoId }) { video ->
+                            VideoRow(video, onVideoClick)
+                        }
+                    }
                 }
             }
         }

@@ -12,6 +12,12 @@ data class Strings(
     val language: String,
     val joinHint: String,
     val back: String,
+    val loading: String,
+    val serverWaking: String,
+    val serverWakingHint: String,
+    val networkError: String,
+    val familyNotFound: String,
+    val loadFailed: String,
 )
 
 object AppStrings {
@@ -34,6 +40,15 @@ object AppStrings {
 
     fun isRtl(lang: String): Boolean = normalize(lang) == "he"
 
+    fun Strings.messageForError(code: String?): String = when (code) {
+        "timeout_server_waking" -> serverWaking
+        "network_error" -> networkError
+        "family_not_found", "invalid_code" -> familyNotFound
+        "load_failed", "join_failed", "session_failed" -> loadFailed
+        null -> loadFailed
+        else -> if (code.startsWith("server_error_")) loadFailed else code
+    }
+
     private val fr = Strings(
         appName = "Family Channels",
         enterCode = "Code famille",
@@ -46,6 +61,12 @@ object AppStrings {
         language = "Langue",
         joinHint = "Entre ton code famille pour voir tes chaînes.",
         back = "Retour",
+        loading = "Chargement…",
+        serverWaking = "Le serveur démarre…",
+        serverWakingHint = "Cela peut prendre jusqu’à une minute.",
+        networkError = "Pas de connexion. Réessaie.",
+        familyNotFound = "Code famille introuvable.",
+        loadFailed = "Chargement impossible. Réessaie.",
     )
 
     private val en = Strings(
@@ -60,6 +81,12 @@ object AppStrings {
         language = "Language",
         joinHint = "Enter your family code to see your channels.",
         back = "Back",
+        loading = "Loading…",
+        serverWaking = "Server is waking up…",
+        serverWakingHint = "This can take up to a minute.",
+        networkError = "No connection. Try again.",
+        familyNotFound = "Family code not found.",
+        loadFailed = "Could not load. Try again.",
     )
 
     private val he = Strings(
@@ -74,5 +101,11 @@ object AppStrings {
         language = "שפה",
         joinHint = "הזינו את קוד המשפחה כדי לראות את הערוצים.",
         back = "חזרה",
+        loading = "טוען…",
+        serverWaking = "השרת מתעורר…",
+        serverWakingHint = "זה עשוי לקחת עד דקה.",
+        networkError = "אין חיבור. נסו שוב.",
+        familyNotFound = "קוד המשפחה לא נמצא.",
+        loadFailed = "לא ניתן לטעון. נסו שוב.",
     )
 }

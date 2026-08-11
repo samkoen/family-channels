@@ -31,8 +31,11 @@ class HomeViewModel(
                 .onSuccess { list ->
                     _state.value = HomeUiState(channels = list, loading = false)
                 }
-                .onFailure {
-                    _state.value = HomeUiState(loading = false, error = "load_failed")
+                .onFailure { error ->
+                    _state.value = HomeUiState(
+                        loading = false,
+                        error = error.message ?: "load_failed",
+                    )
                 }
         }
     }
