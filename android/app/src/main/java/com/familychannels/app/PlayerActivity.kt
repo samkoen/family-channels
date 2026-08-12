@@ -38,6 +38,8 @@ import androidx.lifecycle.lifecycleScope
 import com.familychannels.data.ApiFactory
 import com.familychannels.data.FamilyRepositoryImpl
 import com.familychannels.data.SessionStore
+import com.familychannels.domain.error.QuotaExceededException
+import com.familychannels.domain.repo.FamilyRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -55,6 +57,7 @@ class PlayerActivity : ComponentActivity() {
     private var loadAttempt = 0
     private var ytReady = false
     private var loadStarted = false
+    private var quotaStopped = false
     private var lastFinishedUrl: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
@@ -220,11 +223,19 @@ class PlayerActivity : ComponentActivity() {
         super.onResume()
         webView.onResume()
         webView.resumeTimers()
-        if (!loadStarted) {
-            loadStarted = true
-            webView.post {
-                log("layout", "webView ${webView.width}x${webView.height} — starting load")
-                loadEmbedPage()
+        if (!loadStarted && !quotaStopped) {
+            lifecycleScope.launch {
+                val repo = watchRepo()
+                val allowed = runCatching { repo.getQuota().canWatch }.getOrDefault(false)
+                if (!allowed) {
+                    stopForQuota()
+                    return@launch
+                }
+                loadStarted = true
+                webView.post {
+                    log("layout", "webView ${webView.width}x${webView.height} — starting load")
+                    loadEmbedPage()
+                }
             }
         }
     }
@@ -394,14 +405,55 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun startQuotaHeartbeat() {
-        val repo = FamilyRepositoryImpl(ApiFactory.create(), SessionStore(applicationContext))
         lifecycleScope.launch {
-            runCatching { repo.heartbeat() }
+            val repo = watchRepo()
+            if (!tickHeartbeat(repo)) {
+                stopForQuota()
+                return@launch
+            }
             while (isActive) {
                 delay(60_000)
-                runCatching { repo.heartbeat() }
+                if (!tickHeartbeat(repo)) {
+                    stopForQuota()
+                    return@launch
+                }
             }
         }
+    }
+
+    private fun watchRepo(): FamilyRepository =
+        FamilyRepositoryImpl(ApiFactory.create(), SessionStore(applicationContext))
+
+    private suspend fun tickHeartbeat(repo: FamilyRepository): Boolean {
+        return try {
+            repo.heartbeat(1).canWatch
+        } catch (_: QuotaExceededException) {
+            false
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    private fun stopForQuota() {
+        if (quotaStopped || isFinishing) return
+        quotaStopped = true
+        loadStarted = true
+        handler.removeCallbacksAndMessages(null)
+        webView.apply {
+            stopLoading()
+            evaluateJavascript(
+                """
+                (function(){
+                  try {
+                    if (typeof player !== 'undefined' && player.stopVideo) player.stopVideo();
+                  } catch (e) {}
+                })();
+                """.trimIndent(),
+                null,
+            )
+            loadUrl("about:blank")
+        }
+        finish()
     }
 
     override fun onDestroy() {

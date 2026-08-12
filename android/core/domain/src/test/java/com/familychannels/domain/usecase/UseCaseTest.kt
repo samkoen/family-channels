@@ -1,6 +1,8 @@
 package com.familychannels.domain.usecase
 
+import com.familychannels.domain.model.Channel
 import com.familychannels.domain.model.ChildProfile
+import com.familychannels.domain.model.VideoItem
 import com.familychannels.domain.repo.FamilyRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -57,8 +59,8 @@ private class FakeRepo(
     }
 
     override suspend fun createSession(familyCode: String, childId: String) = "token"
-    override suspend fun listChannels() = emptyList()
-    override suspend fun listVideos(channelId: String) = emptyList()
+    override suspend fun listChannels(): List<Channel> = emptyList()
+    override suspend fun listVideos(channelId: String): List<VideoItem> = emptyList()
     override suspend fun getQuota() = com.familychannels.domain.model.WatchQuota(
         minutesRemaining = if (canWatch) 10 else 0,
         minutesUsed = 0,

@@ -4,6 +4,7 @@ import com.familychannels.data.api.ChildApi
 import com.familychannels.data.api.HeartbeatBody
 import com.familychannels.data.api.JoinBody
 import com.familychannels.data.api.SessionBody
+import com.familychannels.domain.error.QuotaExceededException
 import com.familychannels.domain.model.Channel
 import com.familychannels.domain.model.ChildProfile
 import com.familychannels.domain.model.VideoItem
@@ -97,6 +98,12 @@ class FamilyRepositoryImpl(
             }
             throw IllegalStateException("network_error", e)
         } catch (e: HttpException) {
+            if (e.code() == 403) {
+                val detail = e.response()?.errorBody()?.string().orEmpty()
+                if (detail.contains("quota_exceeded")) {
+                    throw QuotaExceededException()
+                }
+            }
             val msg = when (e.code()) {
                 404 -> "family_not_found"
                 422 -> "invalid_code"

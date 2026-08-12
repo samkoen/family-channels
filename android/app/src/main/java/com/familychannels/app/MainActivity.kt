@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -15,7 +16,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,6 +42,8 @@ import com.familychannels.feature.videos.VideosScreen
 import com.familychannels.feature.videos.VideosViewModel
 import com.familychannels.ui.i18n.AppStrings
 import com.familychannels.ui.theme.FamilyTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -66,6 +72,16 @@ private fun FamilyApp(repo: FamilyRepositoryImpl, store: SessionStore) {
                 QuotaViewModel(CanWatchUseCase(repo), repo)
             }
             val quota by quotaVm.quota.collectAsState()
+            val lifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        quotaVm.refresh()
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+            }
             NavHost(navController = nav, startDestination = "join") {
                 composable("join") {
                     val vm = remember {
@@ -86,7 +102,13 @@ private fun FamilyApp(repo: FamilyRepositoryImpl, store: SessionStore) {
                 }
                 composable("home") {
                     val vm = remember { HomeViewModel(LoadChannelsUseCase(repo)) }
-                    LaunchedEffect(Unit) { quotaVm.refresh() }
+                    LaunchedEffect(Unit) {
+                        quotaVm.refreshNow()
+                        while (isActive) {
+                            delay(30_000)
+                            quotaVm.refreshNow()
+                        }
+                    }
                     val label = formatQuotaLabel(
                         quota,
                         strings.timeLeft,
@@ -112,14 +134,35 @@ private fun FamilyApp(repo: FamilyRepositoryImpl, store: SessionStore) {
                     val vm = remember(channelId) {
                         VideosViewModel(LoadVideosUseCase(repo), channelId)
                     }
-                    val state by vm.state.collectAsState()
                     val context = LocalContext.current
+                    val videoScope = rememberCoroutineScope()
+                    LaunchedEffect(channelId) {
+                        quotaVm.refreshNow()
+                        if (quotaVm.quota.value?.canWatch == false) {
+                            nav.popBackStack("home", inclusive = false)
+                            return@LaunchedEffect
+                        }
+                        while (isActive) {
+                            delay(30_000)
+                            quotaVm.refreshNow()
+                            if (quotaVm.quota.value?.canWatch == false) {
+                                nav.popBackStack("home", inclusive = false)
+                                return@LaunchedEffect
+                            }
+                        }
+                    }
                     VideosScreen(
                         viewModel = vm,
                         strings = strings,
                         onVideoClick = { video ->
-                            if (quota?.canWatch == false) return@VideosScreen
-                            context.startActivity(PlayerActivity.intent(context, video.videoId))
+                            videoScope.launch {
+                                quotaVm.refreshNow()
+                                if (quotaVm.quota.value?.canWatch != false) {
+                                    context.startActivity(
+                                        PlayerActivity.intent(context, video.videoId),
+                                    )
+                                }
+                            }
                         },
                     )
                 }

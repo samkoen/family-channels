@@ -20,9 +20,9 @@ def setup_module():
     reset_test_db()
 
 
-def _child(limit: int = 5):
+def _child(limit: int = 5, family_name: str = "test-family-1111"):
     db = SessionLocal()
-    family = FamilyService(FamilyRepository(db)).create_family("test-family-1111", "1111")
+    family = FamilyService(FamilyRepository(db)).create_family(family_name, "1111")
     child = ChildRepository(db).create(family.id, "Emma", limit, "#333")
     return db, child
 
@@ -44,7 +44,7 @@ def test_quota_heartbeat_blocks_when_limit_reached():
 
 
 def test_watch_time_accumulates_across_sessions_same_day():
-    db, child = _child(10)
+    db, child = _child(10, family_name="test-family-accum")
     service = QuotaService(ChildRepository(db), WatchRepository(db))
     # Session 1
     service.heartbeat(child.id, 3)

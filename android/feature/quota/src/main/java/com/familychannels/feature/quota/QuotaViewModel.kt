@@ -2,6 +2,7 @@ package com.familychannels.feature.quota
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.familychannels.domain.error.QuotaExceededException
 import com.familychannels.domain.model.WatchQuota
 import com.familychannels.domain.repo.FamilyRepository
 import com.familychannels.domain.usecase.CanWatchUseCase
@@ -15,23 +16,22 @@ class QuotaViewModel(
 ) : ViewModel() {
     private val _quota = MutableStateFlow<WatchQuota?>(null)
     val quota: StateFlow<WatchQuota?> = _quota
-    private var lastHeartbeatAt = 0L
 
     fun refresh() {
-        viewModelScope.launch {
-            runCatching { canWatch.currentQuota() }
-                .onSuccess { _quota.value = it }
-        }
+        viewModelScope.launch { refreshNow() }
     }
 
-    fun heartbeat() {
-        val now = System.currentTimeMillis()
-        if (now - lastHeartbeatAt < 60_000) return
-        lastHeartbeatAt = now
-        viewModelScope.launch {
-            runCatching { repo.heartbeat(1) }
-                .onSuccess { _quota.value = it }
-                .onFailure { refresh() }
+    suspend fun refreshNow() {
+        runCatching { canWatch.currentQuota() }
+            .onSuccess { _quota.value = it }
+    }
+
+    suspend fun heartbeatNow(): WatchQuota? {
+        return try {
+            repo.heartbeat(1).also { _quota.value = it }
+        } catch (_: QuotaExceededException) {
+            _quota.value = _quota.value?.copy(canWatch = false)
+            null
         }
     }
 }
