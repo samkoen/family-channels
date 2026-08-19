@@ -43,6 +43,8 @@ android/.cxx/
 android/*.iml
 android/captures/
 android/.externalNativeBuild/
+android/keystore.properties
+android/keystore/
 *.apk
 *.aab
 *.keystore
