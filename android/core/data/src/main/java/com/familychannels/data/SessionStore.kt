@@ -29,6 +29,9 @@ class SessionStore(private val context: Context) {
     suspend fun familyCode(): String? =
         context.dataStore.data.map { it[familyKey] }.first()
 
+    suspend fun childId(): String? =
+        context.dataStore.data.map { it[childKey] }.first()
+
     suspend fun setLang(lang: String) {
         context.dataStore.edit { it[langKey] = lang }
     }

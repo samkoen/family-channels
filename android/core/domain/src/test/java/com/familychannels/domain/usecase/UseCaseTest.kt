@@ -58,7 +58,7 @@ private class FakeRepo(
         return listOf(ChildProfile("1", "Emma", "#333"))
     }
 
-    override suspend fun createSession(familyCode: String, childId: String) = "token"
+    override suspend fun createSession(familyCode: String, childId: String, pin: String) = "token"
     override suspend fun listChannels(): List<Channel> = emptyList()
     override suspend fun listVideos(channelId: String): List<VideoItem> = emptyList()
     override suspend fun getQuota() = com.familychannels.domain.model.WatchQuota(

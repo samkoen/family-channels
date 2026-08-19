@@ -108,4 +108,65 @@ class FamilyRepositoryQuotaTest {
         assertFalse(quota.canWatch)
         assertEquals(0, quota.minutesRemaining)
     }
+
+    @Test
+    fun restoreSessionKeepsValidToken() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setBody(
+                    """
+                    {
+                      "minutes_remaining": 10,
+                      "minutes_used": 0,
+                      "daily_limit_minutes": 60,
+                      "can_watch": true
+                    }
+                    """.trimIndent(),
+                )
+                .addHeader("Content-Type", "application/json"),
+        )
+        assertTrue(repo.restoreSession())
+    }
+
+    @Test
+    fun restoreSessionRenewsExpiredTokenWithoutCode() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setBody("""{"detail":"invalid_token"}""")
+                .addHeader("Content-Type", "application/json"),
+        )
+        server.enqueue(
+            MockResponse()
+                .setBody(
+                    """{"token":"new-token","child_id":"child-1","name":"Emma"}""",
+                )
+                .addHeader("Content-Type", "application/json"),
+        )
+        assertTrue(repo.restoreSession())
+        val sessionReq = server.takeRequest()
+        assertTrue(sessionReq.path!!.endsWith("/api/child/quota"))
+        val renewReq = server.takeRequest()
+        assertTrue(renewReq.path!!.endsWith("/api/child/session"))
+    }
+
+    @Test
+    fun restoreSessionFalseWhenNothingSaved() = runBlocking {
+        val context: Context = ApplicationProvider.getApplicationContext()
+        val emptyStore = SessionStore(context)
+        emptyStore.clear()
+        val emptyRepo = FamilyRepositoryImpl(
+            Retrofit.Builder()
+                .baseUrl(server.url("/"))
+                .addConverterFactory(
+                    MoshiConverterFactory.create(
+                        Moshi.Builder().add(KotlinJsonAdapterFactory()).build(),
+                    ),
+                )
+                .build()
+                .create(ChildApi::class.java),
+            emptyStore,
+        )
+        assertFalse(emptyRepo.restoreSession())
+    }
 }

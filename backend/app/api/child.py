@@ -12,6 +12,7 @@ from app.api.schemas import (
     SessionResponse,
     VideoOut,
 )
+from app.domain.child_pin import check_child_pin
 from app.repositories.child_repo import ChildRepository
 from app.security import make_child_token
 from app.services.channel_service import ChannelService
@@ -31,7 +32,12 @@ def join_family(
     if not family:
         raise HTTPException(status_code=404, detail="family_not_found")
     profiles = [
-        ChildProfile(id=c.id, name=c.name, avatar_color=c.avatar_color)
+        ChildProfile(
+            id=c.id,
+            name=c.name,
+            avatar_color=c.avatar_color,
+            has_pin=bool(c.pin_hash),
+        )
         for c in children.list_by_family(family.id)
     ]
     return JoinResponse(children=profiles)
@@ -49,6 +55,10 @@ def create_session(
     child = children.get(body.child_id)
     if not child or child.family_id != family.id:
         raise HTTPException(status_code=404, detail="child_not_found")
+    try:
+        check_child_pin(child.pin_hash, body.pin)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="invalid_child_pin")
     token = make_child_token(child.id, family.id)
     return SessionResponse(token=token, child_id=child.id, name=child.name)
 

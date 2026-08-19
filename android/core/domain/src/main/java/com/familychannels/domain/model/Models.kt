@@ -4,6 +4,7 @@ data class ChildProfile(
     val id: String,
     val name: String,
     val avatarColor: String,
+    val hasPin: Boolean = false,
 )
 
 data class Channel(

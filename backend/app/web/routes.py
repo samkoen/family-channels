@@ -12,7 +12,8 @@ from app.db import get_db
 from app.repositories.channel_repo import ChannelRepository
 from app.repositories.child_repo import ChildRepository
 from app.repositories.family_repo import FamilyRepository
-from app.security import make_parent_token, read_parent_token
+from app.security import make_child_token, make_parent_token, read_parent_token
+from app.web.child_routes import CHILD_COOKIE, FAMILY_COOKIE
 from app.services.channel_service import ChannelService
 from app.services.family_service import FamilyService
 from app.web.i18n import normalize_lang, ui_ctx
@@ -179,13 +180,74 @@ def add_child(
     request: Request,
     name: str = Form(...),
     daily_limit_minutes: int = Form(60),
+    pin: str = Form(""),
     children: ChildRepository = Depends(child_repo),
 ):
     family_id = _family_id(request)
     if not family_id:
         return RedirectResponse("/login", status_code=303)
-    children.create(family_id, name, daily_limit_minutes, "#4A5568")
+    try:
+        children.create(family_id, name, daily_limit_minutes, "#4A5568", pin or None)
+    except ValueError:
+        return RedirectResponse("/dashboard?error=invalid_pin", status_code=303)
     return RedirectResponse("/dashboard", status_code=303)
+
+
+@router.post("/children/{child_id}/pin")
+def update_child_pin(
+    child_id: str,
+    request: Request,
+    pin: str = Form(""),
+    children: ChildRepository = Depends(child_repo),
+):
+    family_id = _family_id(request)
+    if not family_id:
+        return RedirectResponse("/login", status_code=303)
+    child = children.get(child_id)
+    if not child or child.family_id != family_id:
+        return RedirectResponse("/dashboard?error=child", status_code=303)
+    try:
+        children.update_pin(child_id, pin or None)
+    except ValueError:
+        return RedirectResponse(
+            f"/dashboard?child={child_id}&error=invalid_pin",
+            status_code=303,
+        )
+    return RedirectResponse(f"/dashboard?child={child_id}", status_code=303)
+
+
+@router.post("/children/{child_id}/watch-as")
+def watch_as_child(
+    child_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    children: ChildRepository = Depends(child_repo),
+):
+    """Parent preview of the child watch UI — no child PIN required."""
+    family_id = _family_id(request)
+    if not family_id:
+        return RedirectResponse("/login", status_code=303)
+    child = children.get(child_id)
+    family = FamilyRepository(db).get_by_id(family_id)
+    if not child or not family or child.family_id != family_id:
+        return RedirectResponse("/dashboard?error=child", status_code=303)
+    token = make_child_token(child.id, family.id)
+    response = RedirectResponse("/watch/home", status_code=303)
+    response.set_cookie(
+        CHILD_COOKIE,
+        token,
+        httponly=True,
+        samesite="lax",
+        max_age=72 * 3600,
+    )
+    response.set_cookie(
+        FAMILY_COOKIE,
+        family.code,
+        httponly=True,
+        samesite="lax",
+        max_age=3600,
+    )
+    return response
 
 
 @router.post("/children/{child_id}/limit")

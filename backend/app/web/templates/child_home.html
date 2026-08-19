@@ -8,7 +8,12 @@
         <h1>{{ child_name }}</h1>
         <p class="muted" style="margin:0">Family Channels</p>
       </div>
-      <form method="post" action="/watch/leave"><button type="submit" class="ghost">{{ t.leave }}</button></form>
+      <div class="home-actions">
+        {% if parent_preview %}
+        <a class="ghost" href="/dashboard">{{ t.back_dashboard }}</a>
+        {% endif %}
+        <form method="post" action="/watch/leave"><button type="submit" class="ghost">{{ t.leave }}</button></form>
+      </div>
     </div>
     {% set pct = ((quota.minutes_remaining / quota.daily_limit_minutes * 100) if quota.daily_limit_minutes else 0)|int %}
     {% if quota.can_watch %}

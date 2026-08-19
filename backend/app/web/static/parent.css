@@ -462,6 +462,7 @@ button.secondary:hover,
   font-size: 0.88rem;
 }
 
+button.compact,
 .button.compact,
 a.button.compact {
   padding: 0.4rem 0.75rem;
@@ -537,11 +538,16 @@ a.button.secondary:hover {
 .child-title {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.8rem;
   margin-bottom: 1rem;
 }
 
 .child-title h2 { margin: 0; }
+
+.child-title .inline {
+  margin-inline-start: auto;
+}
 
 .dash-intro {
   display: flex;

@@ -8,9 +8,14 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 
 data class JoinBody(val family_code: String)
-data class ChildDto(val id: String, val name: String, val avatar_color: String)
+data class ChildDto(
+    val id: String,
+    val name: String,
+    val avatar_color: String,
+    val has_pin: Boolean = false,
+)
 data class JoinResponse(val children: List<ChildDto>)
-data class SessionBody(val family_code: String, val child_id: String)
+data class SessionBody(val family_code: String, val child_id: String, val pin: String? = null)
 data class SessionResponse(val token: String, val child_id: String, val name: String)
 data class ChannelDto(
     val id: String,

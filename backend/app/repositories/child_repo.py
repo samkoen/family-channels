@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from app.domain.child_pin import hash_child_pin
 from app.models import ChildRow
 
 
@@ -24,12 +25,14 @@ class ChildRepository:
         name: str,
         daily_limit_minutes: int,
         avatar_color: str,
+        pin: str | None = None,
     ) -> ChildRow:
         child = ChildRow(
             family_id=family_id,
             name=name.strip(),
             daily_limit_minutes=daily_limit_minutes,
             avatar_color=avatar_color,
+            pin_hash=hash_child_pin(pin),
         )
         self.db.add(child)
         self.db.commit()
@@ -41,6 +44,15 @@ class ChildRepository:
         if not child:
             return None
         child.daily_limit_minutes = daily_limit_minutes
+        self.db.commit()
+        self.db.refresh(child)
+        return child
+
+    def update_pin(self, child_id: str, pin: str | None) -> ChildRow | None:
+        child = self.get(child_id)
+        if not child:
+            return None
+        child.pin_hash = hash_child_pin(pin)
         self.db.commit()
         self.db.refresh(child)
         return child

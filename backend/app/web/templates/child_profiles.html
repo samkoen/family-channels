@@ -8,15 +8,28 @@
     </div>
     <h1>{{ t.who_watching }}</h1>
     <p class="lede">{{ t.pick_profile }}</p>
+    {% if error == 'invalid_child_pin' %}
+    <p class="error">{{ t.invalid_child_pin }}</p>
+    {% endif %}
     <div class="stack">
       {% for child in children %}
-      <form method="post" action="/watch/select">
+      <form method="post" action="/watch/select" class="profile-form">
         <input type="hidden" name="child_id" value="{{ child.id }}" />
+        {% if child.pin_hash %}
+        <div class="profile-lock">
+          <button type="submit" class="profile">
+            <span class="avatar" style="background: {{ child.avatar_color|default('#4A5568') }}">{{ child.name[:1]|upper }}</span>
+            {{ child.name }}
+          </button>
+          <input name="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="{{ t.child_pin }}" aria-label="{{ t.child_pin }}" dir="ltr" />
+        </div>
+        {% else %}
         <button type="submit" class="profile">
           <span class="avatar" style="background: {{ child.avatar_color|default('#4A5568') }}">{{ child.name[:1]|upper }}</span>
           {{ child.name }}
           <span class="chevron" aria-hidden="true"></span>
         </button>
+        {% endif %}
       </form>
       {% else %}
       <p class="muted">{{ t.no_profiles }}</p>

@@ -17,6 +17,8 @@
   </div>
   {% if error == 'channel' %}
   <p class="error">{{ t.channel_error }}</p>
+  {% elif error == 'invalid_pin' %}
+  <p class="error">{{ t.invalid_pin }}</p>
   {% endif %}
 </section>
 
@@ -29,6 +31,9 @@
     <label>{{ t.daily_minutes }}
       <input type="number" name="daily_limit_minutes" value="60" min="1" max="720" dir="ltr" />
     </label>
+    <label>{{ t.child_pin_optional }}
+      <input name="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="1234" dir="ltr" />
+    </label>
     <button type="submit">{{ t.add }}</button>
   </form>
 </section>
@@ -38,12 +43,24 @@
   <div class="child-title">
     <div class="child-avatar" style="background: {{ child.avatar_color|default('#4A5568') }}">{{ child.name[:1]|upper }}</div>
     <h2>{{ child.name }}</h2>
+    {% if child.pin_hash %}
+    <span class="meta-chip">{{ t.pin_protected }}</span>
+    {% endif %}
+    <form method="post" action="/children/{{ child.id }}/watch-as" class="inline" title="{{ t.watch_as_hint }}">
+      <button type="submit" class="secondary compact">{{ t.watch_as }}</button>
+    </form>
   </div>
   <form method="post" action="/children/{{ child.id }}/limit" class="row">
     <label>{{ t.daily_minutes }}
       <input type="number" name="daily_limit_minutes" value="{{ child.daily_limit_minutes }}" min="1" max="720" dir="ltr" />
     </label>
     <button type="submit" class="secondary">{{ t.save_limit }}</button>
+  </form>
+  <form method="post" action="/children/{{ child.id }}/pin" class="row">
+    <label>{{ t.child_pin }}
+      <input name="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="{{ t.child_pin_hint }}" dir="ltr" />
+    </label>
+    <button type="submit" class="secondary">{{ t.save_pin }}</button>
   </form>
 
   <h3>{{ t.approved_channels }}</h3>

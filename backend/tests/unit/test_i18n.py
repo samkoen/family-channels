@@ -17,6 +17,8 @@ def test_hebrew_strings_present():
     he = strings_for("he")
     assert he["sign_in"] == "התחברות"
     assert "{n}" in he["min_left"]
+    assert "watch_as" in he
+    assert strings_for("fr").keys() == strings_for("en").keys() == he.keys()
 
 
 class _Cookies(dict):

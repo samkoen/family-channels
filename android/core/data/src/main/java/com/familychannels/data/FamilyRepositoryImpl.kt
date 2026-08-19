@@ -23,14 +23,20 @@ class FamilyRepositoryImpl(
         return mapApiErrors {
             val response = api.join(JoinBody(familyCode.trim().uppercase()))
             response.children.map {
-                ChildProfile(it.id, it.name, it.avatar_color)
+                ChildProfile(it.id, it.name, it.avatar_color, it.has_pin)
             }
         }
     }
 
-    override suspend fun createSession(familyCode: String, childId: String): String {
+    override suspend fun createSession(familyCode: String, childId: String, pin: String): String {
         return mapApiErrors {
-            val response = api.session(SessionBody(familyCode.trim().uppercase(), childId))
+            val response = api.session(
+                SessionBody(
+                    familyCode.trim().uppercase(),
+                    childId,
+                    pin.trim().ifBlank { null },
+                ),
+            )
             store.saveSession(response.token, familyCode.trim().uppercase(), childId)
             response.token
         }
@@ -76,6 +82,27 @@ class FamilyRepositoryImpl(
         }
     }
 
+    suspend fun restoreSession(): Boolean {
+        val code = store.familyCode()
+        val childId = store.childId()
+        val hasToken = store.token() != null
+        if (!hasToken && (code.isNullOrBlank() || childId.isNullOrBlank())) {
+            return false
+        }
+        if (hasToken) {
+            val quota = runCatching { getQuota() }
+            if (quota.isSuccess) return true
+            val reason = quota.exceptionOrNull()?.message.orEmpty()
+            if (reason == "network_error" || reason == "timeout_server_waking") {
+                return true
+            }
+        }
+        if (!code.isNullOrBlank() && !childId.isNullOrBlank()) {
+            return runCatching { createSession(code, childId) }.isSuccess
+        }
+        return false
+    }
+
     private suspend fun auth(): String {
         val token = store.token() ?: error("missing_token")
         return "Bearer $token"
@@ -102,6 +129,9 @@ class FamilyRepositoryImpl(
                 val detail = e.response()?.errorBody()?.string().orEmpty()
                 if (detail.contains("quota_exceeded")) {
                     throw QuotaExceededException()
+                }
+                if (detail.contains("invalid_child_pin")) {
+                    throw IllegalStateException("invalid_child_pin")
                 }
             }
             val msg = when (e.code()) {

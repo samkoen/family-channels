@@ -20,8 +20,9 @@ data class JoinUiState(
 class JoinViewModel(
     private val joinFamily: JoinFamilyUseCase,
     private val repo: FamilyRepository,
+    initialCode: String = "",
 ) : ViewModel() {
-    private val _state = MutableStateFlow(JoinUiState())
+    private val _state = MutableStateFlow(JoinUiState(code = initialCode))
     val state: StateFlow<JoinUiState> = _state
 
     fun onCodeChange(value: String) {
@@ -44,11 +45,11 @@ class JoinViewModel(
         }
     }
 
-    fun selectChild(childId: String) {
+    fun selectChild(childId: String, pin: String = "") {
         viewModelScope.launch {
-            _state.value = _state.value.copy(loading = true)
+            _state.value = _state.value.copy(loading = true, error = null)
             runCatching {
-                repo.createSession(_state.value.code.trim().uppercase(), childId)
+                repo.createSession(_state.value.code.trim().uppercase(), childId, pin)
             }.onSuccess {
                 _state.value = _state.value.copy(loading = false, sessionReady = true)
             }.onFailure { error ->

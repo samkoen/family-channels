@@ -66,7 +66,7 @@ private class FakeQuotaRepo(
     private val throwOnHeartbeat: Exception? = null,
 ) : FamilyRepository {
     override suspend fun join(familyCode: String): List<ChildProfile> = emptyList()
-    override suspend fun createSession(familyCode: String, childId: String) = "token"
+    override suspend fun createSession(familyCode: String, childId: String, pin: String) = "token"
     override suspend fun listChannels(): List<Channel> = emptyList()
     override suspend fun listVideos(channelId: String): List<VideoItem> = emptyList()
     override suspend fun getQuota(): WatchQuota = quota

@@ -305,6 +305,17 @@ html[dir="rtl"] button.profile .chevron {
   transform: rotate(135deg);
 }
 
+.profile-lock {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.profile-lock input {
+  text-align: center;
+  letter-spacing: 0.28em;
+  font-weight: 700;
+}
+
 .avatar {
   width: 2.85rem;
   height: 2.85rem;
@@ -321,6 +332,14 @@ html[dir="rtl"] button.profile .chevron {
     inset 0 0 0 2px rgba(255, 255, 255, 0.35);
 }
 
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+a.ghost,
 button.ghost {
   background: rgba(255, 255, 255, 0.7);
   color: var(--muted);
@@ -329,8 +348,10 @@ button.ghost {
   padding: 0.55rem 0.9rem;
   font-size: 0.9rem;
   border-radius: 999px;
+  text-decoration: none;
 }
 
+a.ghost:hover,
 button.ghost:hover {
   color: var(--ink);
   background: #fff;

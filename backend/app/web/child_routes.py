@@ -5,8 +5,10 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.api.deps import channel_service, child_repo, family_service, quota_service
+from app.config import get_settings
+from app.domain.child_pin import check_child_pin
 from app.repositories.child_repo import ChildRepository
-from app.security import make_child_token, read_child_token
+from app.security import make_child_token, read_child_token, read_parent_token
 from app.services.channel_service import ChannelService
 from app.services.family_service import FamilyService
 from app.services.quota_service import QuotaService
@@ -31,6 +33,11 @@ def _clear_child_cookies(response: RedirectResponse) -> RedirectResponse:
     response.delete_cookie(CHILD_COOKIE)
     response.delete_cookie(FAMILY_COOKIE)
     return response
+
+
+def _parent_owns_family(request: Request, family_id: str) -> bool:
+    token = request.cookies.get(get_settings().session_cookie_name)
+    return read_parent_token(token or "") == family_id
 
 
 def _require_child(
@@ -88,6 +95,7 @@ def child_join(
 def child_select(
     request: Request,
     child_id: str = Form(...),
+    pin: str = Form(""),
     families: FamilyService = Depends(family_service),
     children: ChildRepository = Depends(child_repo),
 ):
@@ -96,6 +104,15 @@ def child_select(
     child = children.get(child_id)
     if not family or not child or child.family_id != family.id:
         return RedirectResponse("/watch", status_code=303)
+    try:
+        check_child_pin(child.pin_hash, pin)
+    except PermissionError:
+        kids = children.list_by_family(family.id)
+        return templates.TemplateResponse(
+            "child_profiles.html",
+            ui_ctx(request, children=kids, family_code=code, error="invalid_child_pin"),
+            status_code=401,
+        )
     token = make_child_token(child.id, family.id)
     response = RedirectResponse("/watch/home", status_code=303)
     response.set_cookie(CHILD_COOKIE, token, httponly=True, samesite="lax", max_age=72 * 3600)
@@ -125,6 +142,7 @@ def child_home(
             child_name=child.name,
             channels=rows,
             quota=quota,
+            parent_preview=_parent_owns_family(request, session["family_id"]),
         ),
     )
 

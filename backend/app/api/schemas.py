@@ -9,6 +9,7 @@ class ChildProfile(BaseModel):
     id: str
     name: str
     avatar_color: str
+    has_pin: bool = False
 
 
 class JoinResponse(BaseModel):
@@ -18,6 +19,7 @@ class JoinResponse(BaseModel):
 class SessionRequest(BaseModel):
     family_code: str
     child_id: str
+    pin: str | None = None
 
 
 class SessionResponse(BaseModel):

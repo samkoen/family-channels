@@ -32,6 +32,7 @@ class ChildRow(Base):
     name: Mapped[str] = mapped_column(String(80))
     daily_limit_minutes: Mapped[int] = mapped_column(Integer, default=60)
     avatar_color: Mapped[str] = mapped_column(String(16), default="#4A5568")
+    pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     family: Mapped[FamilyRow] = relationship(back_populates="children")
     channels: Mapped[list["ChannelRow"]] = relationship(back_populates="child")

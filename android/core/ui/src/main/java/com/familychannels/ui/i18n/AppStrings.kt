@@ -18,6 +18,8 @@ data class Strings(
     val networkError: String,
     val familyNotFound: String,
     val loadFailed: String,
+    val childPin: String,
+    val invalidChildPin: String,
 )
 
 object AppStrings {
@@ -44,6 +46,7 @@ object AppStrings {
         "timeout_server_waking" -> serverWaking
         "network_error" -> networkError
         "family_not_found", "invalid_code" -> familyNotFound
+        "invalid_child_pin" -> invalidChildPin
         "load_failed", "join_failed", "session_failed" -> loadFailed
         null -> loadFailed
         else -> if (code.startsWith("server_error_")) loadFailed else code
@@ -67,6 +70,8 @@ object AppStrings {
         networkError = "Pas de connexion. Réessaie.",
         familyNotFound = "Code famille introuvable.",
         loadFailed = "Chargement impossible. Réessaie.",
+        childPin = "PIN du profil",
+        invalidChildPin = "PIN incorrect.",
     )
 
     private val en = Strings(
@@ -87,6 +92,8 @@ object AppStrings {
         networkError = "No connection. Try again.",
         familyNotFound = "Family code not found.",
         loadFailed = "Could not load. Try again.",
+        childPin = "Profile PIN",
+        invalidChildPin = "Incorrect PIN.",
     )
 
     private val he = Strings(
@@ -107,5 +114,7 @@ object AppStrings {
         networkError = "אין חיבור. נסו שוב.",
         familyNotFound = "קוד המשפחה לא נמצא.",
         loadFailed = "לא ניתן לטעון. נסו שוב.",
+        childPin = "PIN לפרופיל",
+        invalidChildPin = "PIN שגוי.",
     )
 }

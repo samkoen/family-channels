@@ -7,7 +7,7 @@ import com.familychannels.domain.model.WatchQuota
 
 interface FamilyRepository {
     suspend fun join(familyCode: String): List<ChildProfile>
-    suspend fun createSession(familyCode: String, childId: String): String
+    suspend fun createSession(familyCode: String, childId: String, pin: String = ""): String
     suspend fun listChannels(): List<Channel>
     suspend fun listVideos(channelId: String): List<VideoItem>
     suspend fun getQuota(): WatchQuota

@@ -32,6 +32,7 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
     _migrate_families_schema()
+    _migrate_children_pin()
 
 
 def _migrate_families_schema() -> None:
@@ -72,3 +73,15 @@ def _migrate_families_schema() -> None:
         if pin_col is not None and not pin_col.get("nullable", True):
             if dialect == "postgresql":
                 conn.execute(text("ALTER TABLE families ALTER COLUMN pin_hash DROP NOT NULL"))
+
+
+def _migrate_children_pin() -> None:
+    """Additive PIN column for existing children tables."""
+    insp = inspect(engine)
+    if "children" not in insp.get_table_names():
+        return
+    columns = {col["name"] for col in insp.get_columns("children")}
+    if "pin_hash" in columns:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE children ADD COLUMN pin_hash VARCHAR(255)"))
