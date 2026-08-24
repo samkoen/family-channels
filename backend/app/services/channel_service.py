@@ -166,8 +166,27 @@ class ChannelService:
         video_id: str,
     ) -> bool:
         channel = self._allowed_channel(child_id, channel_row_id)
+        # A video already shown in this channel's catalog must play.
+        # A second live YouTube check often disagrees (embed flag, other
+        # channelId on the same uploads, API errors) and used to bounce
+        # the child back to the list with no player and no logs.
+        if self._video_in_catalog(child_id, channel.id, video_id):
+            return True
         video = self.youtube.get_playable_video(video_id, channel.youtube_channel_id)
         if not video:
             return False
         patterns = self.channels.filter_patterns(channel.id)
         return title_matches_filters(video.get("title", ""), patterns)
+
+    def _video_in_catalog(self, child_id: str, channel_row_id: str, video_id: str) -> bool:
+        if not video_id:
+            return False
+        for video in self.list_videos(child_id, channel_row_id):
+            if video.get("video_id") == video_id:
+                return True
+        if not self.cache:
+            return False
+        for payload in self.cache.iter_fresh_payloads(channel_row_id):
+            if any(item.get("video_id") == video_id for item in payload):
+                return True
+        return False

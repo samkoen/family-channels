@@ -18,3 +18,13 @@ def test_filter_removes_shorts():
     ]
     result = filter_classic_videos(videos)
     assert [v["video_id"] for v in result] == ["b"]
+
+
+def test_filter_removes_non_embeddable():
+    videos = [
+        {"video_id": "ok", "duration": "PT5M", "embeddable": True},
+        {"video_id": "blocked", "duration": "PT5M", "embeddable": False},
+        {"video_id": "legacy", "duration": "PT5M"},
+    ]
+    result = filter_classic_videos(videos)
+    assert [v["video_id"] for v in result] == ["ok", "legacy"]

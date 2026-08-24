@@ -180,6 +180,7 @@ def child_videos(
             quota=quota,
             q=q.strip(),
             refresh=1 if refresh else 0,
+            error=request.query_params.get("error"),
         ),
     )
 
@@ -252,14 +253,22 @@ def child_play(
         return _clear_child_cookies(RedirectResponse("/watch", status_code=303))
     if not quota.can_watch:
         return RedirectResponse("/watch/home", status_code=303)
+    print(f"play start channel={channel_id} video={video_id}")
     try:
         allowed = channels.can_play_video(session["child_id"], channel_id, video_id)
     except PermissionError:
+        print(f"play denied channel={channel_id} video={video_id} reason=forbidden")
         return RedirectResponse("/watch/home", status_code=303)
-    except Exception:
+    except Exception as exc:
+        print(f"play check_failed channel={channel_id} video={video_id}: {exc!r}")
         allowed = False
     if not allowed:
-        return RedirectResponse(f"/watch/channels/{channel_id}", status_code=303)
+        print(f"play denied channel={channel_id} video={video_id} reason=not_playable")
+        return RedirectResponse(
+            f"/watch/channels/{channel_id}?error=not_playable",
+            status_code=303,
+        )
+    print(f"play ok channel={channel_id} video={video_id}")
     try:
         # Start of this viewing session counts toward the daily total.
         quota = quotas.heartbeat(session["child_id"], 1)

@@ -56,6 +56,22 @@ class VideoCacheRepository:
             )
         self.db.commit()
 
+    def iter_fresh_payloads(
+        self,
+        channel_id: str,
+        now: datetime | None = None,
+    ) -> list[list[dict]]:
+        moment = now or datetime.utcnow()
+        rows = (
+            self.db.query(VideoCacheRow)
+            .filter(
+                VideoCacheRow.channel_id == channel_id,
+                VideoCacheRow.expires_at > moment,
+            )
+            .all()
+        )
+        return [list(row.payload or []) for row in rows]
+
     def delete_by_channel(self, channel_id: str) -> int:
         deleted = (
             self.db.query(VideoCacheRow)

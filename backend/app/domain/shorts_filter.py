@@ -20,5 +20,13 @@ def is_short_video(duration_iso: str) -> bool:
     return iso8601_duration_to_seconds(duration_iso) <= SHORTS_MAX_SECONDS
 
 
+def is_embeddable_video(video: dict) -> bool:
+    return video.get("embeddable", True) is not False
+
+
 def filter_classic_videos(videos: list[dict]) -> list[dict]:
-    return [v for v in videos if not is_short_video(v.get("duration", "PT0S"))]
+    return [
+        v
+        for v in videos
+        if not is_short_video(v.get("duration", "PT0S")) and is_embeddable_video(v)
+    ]

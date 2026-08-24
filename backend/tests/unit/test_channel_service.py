@@ -79,6 +79,30 @@ def test_or_filters_limit_videos_and_playback():
     db.close()
 
 
+def test_listed_video_plays_even_if_live_youtube_rejects():
+    class RejectLiveYouTube(FakeYouTube):
+        def get_playable_video(self, video_id: str, youtube_channel_id: str):
+            return None
+
+    db = SessionLocal()
+    family = FamilyService(FamilyRepository(db)).create_family(
+        "test-family-play-listed",
+        "2222",
+    )
+    child = ChildRepository(db).create(family.id, "Tom", 60, "#111")
+    service = ChannelService(
+        ChannelRepository(db),
+        ChildRepository(db),
+        RejectLiveYouTube(),
+    )
+    channel = service.add_for_child(child.id, "@DemoChannel")
+    videos = service.list_videos(child.id, channel.id)
+    assert videos[0]["video_id"] == "vid1"
+    assert service.can_play_video(child.id, channel.id, "vid1") is True
+    assert service.can_play_video(child.id, channel.id, "unknown") is False
+    db.close()
+
+
 def test_filters_scan_whole_channel_not_only_recent_uploads():
     """Filters must scan/search beyond the latest upload page."""
 

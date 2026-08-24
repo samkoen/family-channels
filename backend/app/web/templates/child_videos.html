@@ -26,6 +26,9 @@
     </div>
 
     <p id="videos-error" class="error" hidden>{{ t.videos_load_error }}</p>
+    {% if error == 'not_playable' %}
+    <p class="error">{{ t.video_not_playable }}</p>
+    {% endif %}
     <ul id="videos-list" class="cards" hidden></ul>
     <p id="videos-empty" class="muted" hidden></p>
   </section>
