@@ -39,68 +39,87 @@
 </section>
 
 {% for child in children %}
-<section class="panel {% if selected_child == child.id %}focus{% endif %}">
-  <div class="child-title">
-    <div class="child-avatar" style="background: {{ child.avatar_color|default('#4A5568') }}">{{ child.name[:1]|upper }}</div>
-    <h2>{{ child.name }}</h2>
-    {% if child.pin_hash %}
-    <span class="meta-chip">{{ t.pin_protected }}</span>
-    {% endif %}
-    <form method="post" action="/children/{{ child.id }}/watch-as" class="inline" title="{{ t.watch_as_hint }}">
-      <button type="submit" class="secondary compact">{{ t.watch_as }}</button>
-    </form>
-  </div>
-  <form method="post" action="/children/{{ child.id }}/limit" class="row">
-    <label>{{ t.daily_minutes }}
-      <input type="number" name="daily_limit_minutes" value="{{ child.daily_limit_minutes }}" min="1" max="720" dir="ltr" />
-    </label>
-    <button type="submit" class="secondary">{{ t.save_limit }}</button>
-  </form>
-  <form method="post" action="/children/{{ child.id }}/pin" class="row">
-    <label>{{ t.child_pin }}
-      <input name="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="{{ t.child_pin_hint }}" dir="ltr" />
-    </label>
-    <button type="submit" class="secondary">{{ t.save_pin }}</button>
-  </form>
-
-  <h3>{{ t.approved_channels }}</h3>
-  <ul class="list">
-    {% for ch in channels_by_child[child.id] %}
-    <li class="channel-row">
-      <div class="channel-main">
-        <span class="channel-title">{{ ch.title }}</span>
-        {% set ch_filters = filters_by_channel.get(ch.id, []) %}
-        {% if ch_filters %}
-        <div class="channel-filters" aria-label="{{ t.filters }}">
-          {% for f in ch_filters %}
-          <span class="filter-chip">{{ f.pattern }}</span>
-          {% endfor %}
-        </div>
-        {% else %}
-        <p class="muted channel-filters-empty">{{ t.no_filters }}</p>
-        {% endif %}
-      </div>
-      <span class="channel-actions">
-        <a class="button secondary compact" href="/channels/{{ ch.id }}/edit">{{ t.edit }}</a>
-        <form method="post" action="/channels/{{ ch.id }}/delete" class="inline">
-          <button type="submit" class="danger">{{ t.remove }}</button>
-        </form>
+{% set child_open = selected_child == child.id or (not selected_child and loop.first) %}
+{% set channel_n = channels_by_child[child.id]|length %}
+<section class="panel child-acc-panel {% if selected_child == child.id %}focus{% endif %}" id="child-{{ child.id }}">
+  <details class="child-acc" {% if child_open %}open{% endif %}>
+    <summary class="child-summary">
+      <div class="child-avatar" style="background: {{ child.avatar_color|default('#4A5568') }}">{{ child.name[:1]|upper }}</div>
+      <h2>{{ child.name }}</h2>
+      {% if child.pin_hash %}
+      <span class="meta-chip">{{ t.pin_protected }}</span>
+      {% endif %}
+      <span class="child-summary-meta">
+        <span class="muted">{{ t.n_minutes_day.format(n=child.daily_limit_minutes) }}</span>
+        <span class="muted">{{ t.n_channels.format(n=channel_n) }}</span>
+        <span class="acc-chevron" aria-hidden="true"></span>
       </span>
-    </li>
-    {% else %}
-    <li class="muted">{{ t.no_channels_dash }}</li>
-    {% endfor %}
-  </ul>
-  <form method="post" action="/children/{{ child.id }}/channels" class="row">
-    <label style="flex:1; min-width:14rem">{{ t.channel_input }}
-      <input name="channel_input" placeholder="https://youtube.com/@..." required dir="ltr" />
-    </label>
-    <button type="submit">{{ t.add_channel }}</button>
-  </form>
+    </summary>
+    <div class="child-acc-body">
+      <div class="child-acc-toolbar">
+        <form method="post" action="/children/{{ child.id }}/watch-as" class="inline" title="{{ t.watch_as_hint }}">
+          <button type="submit" class="secondary compact">{{ t.watch_as }}</button>
+        </form>
+      </div>
+      <form method="post" action="/children/{{ child.id }}/limit" class="row">
+        <label>{{ t.daily_minutes }}
+          <input type="number" name="daily_limit_minutes" value="{{ child.daily_limit_minutes }}" min="1" max="720" dir="ltr" />
+        </label>
+        <button type="submit" class="secondary">{{ t.save_limit }}</button>
+      </form>
+      <form method="post" action="/children/{{ child.id }}/pin" class="row">
+        <label>{{ t.child_pin }}
+          <input name="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="{{ t.child_pin_hint }}" dir="ltr" />
+        </label>
+        <button type="submit" class="secondary">{{ t.save_pin }}</button>
+      </form>
+
+      <h3>{{ t.approved_channels }}</h3>
+      <ul class="list">
+        {% for ch in channels_by_child[child.id] %}
+        <li class="channel-row">
+          <div class="channel-main">
+            <span class="channel-title">{{ ch.title }}</span>
+            {% set ch_filters = filters_by_channel.get(ch.id, []) %}
+            {% if ch_filters %}
+            <div class="channel-filters" aria-label="{{ t.filters }}">
+              {% for f in ch_filters %}
+              <span class="filter-chip">{{ f.pattern }}</span>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted channel-filters-empty">{{ t.no_filters }}</p>
+            {% endif %}
+          </div>
+          <span class="channel-actions">
+            <a class="button secondary compact" href="/channels/{{ ch.id }}/edit">{{ t.edit }}</a>
+            <form method="post" action="/channels/{{ ch.id }}/delete" class="inline">
+              <button type="submit" class="danger">{{ t.remove }}</button>
+            </form>
+          </span>
+        </li>
+        {% else %}
+        <li class="muted">{{ t.no_channels_dash }}</li>
+        {% endfor %}
+      </ul>
+      <form method="post" action="/children/{{ child.id }}/channels" class="row">
+        <label style="flex:1; min-width:14rem">{{ t.channel_input }}
+          <input name="channel_input" placeholder="https://youtube.com/@..." required dir="ltr" />
+        </label>
+        <button type="submit">{{ t.add_channel }}</button>
+      </form>
+    </div>
+  </details>
 </section>
 {% else %}
 <section class="panel flat">
   <p class="muted">{{ t.add_child_hint }}</p>
 </section>
 {% endfor %}
+{% if selected_child %}
+<script>
+  var selected = document.getElementById("child-{{ selected_child }}");
+  if (selected) selected.scrollIntoView({ block: "start", behavior: "smooth" });
+</script>
+{% endif %}
 {% endblock %}

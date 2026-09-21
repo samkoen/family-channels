@@ -39,10 +39,12 @@ import com.familychannels.data.ApiFactory
 import com.familychannels.data.FamilyRepositoryImpl
 import com.familychannels.data.SessionStore
 import com.familychannels.domain.error.QuotaExceededException
+import com.familychannels.domain.player.PlayerNavPolicy
 import com.familychannels.domain.repo.FamilyRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.ByteArrayInputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -129,6 +131,11 @@ class PlayerActivity : ComponentActivity() {
             userAgentString =
                 "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
+            setSupportZoom(false)
+            builtInZoomControls = false
+            displayZoomControls = false
         }
 
         logDeviceInfo()
@@ -147,6 +154,16 @@ class PlayerActivity : ComponentActivity() {
                     log("title", title)
                 }
             }
+
+            override fun onCreateWindow(
+                view: WebView?,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: android.os.Message?,
+            ): Boolean {
+                log("blockWindow", "popup")
+                return false
+            }
         }
 
         webView.webViewClient = object : WebViewClient() {
@@ -158,6 +175,7 @@ class PlayerActivity : ComponentActivity() {
                 lastFinishedUrl = url
                 log("pageDone", url ?: "")
                 hideWebDebugPanel()
+                lockPlayerLayout()
                 if (isRealUrl(url)) {
                     probePage()
                     scheduleAttemptTimeout()
@@ -208,11 +226,33 @@ class PlayerActivity : ComponentActivity() {
                 request: WebResourceRequest?,
             ): Boolean {
                 val url = request?.url?.toString().orEmpty()
-                val host = request?.url?.host.orEmpty()
-                if (host.isEmpty()) return false
-                val ok = isAllowedHost(host)
-                if (!ok) log("blockNav", url)
-                return !ok
+                val allow = if (request?.isForMainFrame != false) {
+                    PlayerNavPolicy.shouldAllowMainFrame(url, videoId, SERVER_HOST)
+                } else {
+                    !PlayerNavPolicy.shouldBlockResource(url, videoId)
+                }
+                if (!allow) log("blockNav", url)
+                return !allow
+            }
+
+            @Suppress("DEPRECATION")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                val target = url.orEmpty()
+                val allow = PlayerNavPolicy.shouldAllowMainFrame(target, videoId, SERVER_HOST)
+                if (!allow) log("blockNav", target)
+                return !allow
+            }
+
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                request: WebResourceRequest?,
+            ): WebResourceResponse? {
+                val url = request?.url?.toString().orEmpty()
+                if (PlayerNavPolicy.shouldBlockResource(url, videoId)) {
+                    log("blockRes", url)
+                    return blockedResponse()
+                }
+                return super.shouldInterceptRequest(view, request)
             }
         }
 
@@ -251,15 +291,15 @@ class PlayerActivity : ComponentActivity() {
         return url != "about:blank" && !url.startsWith("data:")
     }
 
-    private fun isAllowedHost(host: String): Boolean =
-        host.contains(SERVER_HOST) ||
-            host.contains("youtube.com") ||
-            host.contains("youtube-nocookie.com") ||
-            host.contains("googlevideo.com") ||
-            host.contains("google.com") ||
-            host.contains("gstatic.com") ||
-            host.contains("ytimg.com") ||
-            host.contains("ggpht.com")
+    private fun blockedResponse(): WebResourceResponse =
+        WebResourceResponse(
+            "text/plain",
+            "utf-8",
+            403,
+            "Blocked",
+            mapOf("Access-Control-Allow-Origin" to "*"),
+            ByteArrayInputStream(ByteArray(0)),
+        )
 
     private fun logDeviceInfo() {
         log("videoId", videoId)
@@ -283,18 +323,13 @@ class PlayerActivity : ComponentActivity() {
         val url = when (loadAttempt) {
             0 -> "$SERVER_BASE/embed/$videoId"
             1 -> "$SERVER_BASE/static/player.html?v=$videoId"
-            2 -> "https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&fs=1"
             else -> {
                 log("giveUp", "all strategies failed — copiez les logs")
                 return
             }
         }
         log("load", "attempt=$loadAttempt url=$url")
-        if (loadAttempt == 2) {
-            webView.loadUrl(url, mapOf("Referer" to "$SERVER_BASE/"))
-        } else {
-            webView.loadUrl(url)
-        }
+        webView.loadUrl(url)
         scheduleAttemptTimeout()
     }
 
@@ -313,7 +348,7 @@ class PlayerActivity : ComponentActivity() {
         if (ytReady || isFinishing) return
         log("tryNext", "reason=$reason from attempt=$loadAttempt")
         loadAttempt++
-        if (loadAttempt <= 2) {
+        if (loadAttempt <= 1) {
             webView.post { loadEmbedPage() }
         } else {
             log("giveUp", "all strategies failed — copiez les logs")
@@ -354,6 +389,36 @@ class PlayerActivity : ComponentActivity() {
         )
     }
 
+    /**
+     * YouTube paints a "YouTube" button + unrelated videos in leftover
+     * iframe height. Force 16:9 even if the hosted HTML is still old.
+     */
+    private fun lockPlayerLayout() {
+        webView.evaluateJavascript(
+            """
+            (function(){
+              var style = document.getElementById('fc-lock-style');
+              if (!style) {
+                style = document.createElement('style');
+                style.id = 'fc-lock-style';
+                document.documentElement.appendChild(style);
+              }
+              style.textContent =
+                'html,body{margin:0;padding:0;background:#000!important;' +
+                'overflow:hidden!important;height:100%!important;width:100%!important;}' +
+                'body{display:flex!important;align-items:center!important;' +
+                'justify-content:center!important;}' +
+                '#stage{position:fixed!important;inset:0!important;display:flex!important;' +
+                'align-items:center!important;justify-content:center!important;background:#000!important;}' +
+                '#player,#player-box,iframe{width:min(100vw,calc(100vh * 16 / 9))!important;' +
+                'height:min(100vh,calc(100vw * 9 / 16))!important;' +
+                'max-width:100%!important;max-height:100%!important;border:0!important;}';
+            })();
+            """.trimIndent(),
+            null,
+        )
+    }
+
     private fun log(tag: String, msg: String) {
         val line = "${timeFmt.format(Date())} [$tag] $msg"
         Log.d(LOG_TAG, line)
@@ -386,6 +451,7 @@ class PlayerActivity : ComponentActivity() {
             runOnUiThread {
                 ytReady = true
                 handler.removeCallbacksAndMessages(null)
+                lockPlayerLayout()
                 log("ytReady", "OK")
             }
         }
@@ -401,6 +467,14 @@ class PlayerActivity : ComponentActivity() {
         @JavascriptInterface
         fun onState(state: String) {
             runOnUiThread { log("ytState", state) }
+        }
+
+        @JavascriptInterface
+        fun onEnded() {
+            runOnUiThread {
+                log("ytEnded", "close player")
+                finish()
+            }
         }
     }
 

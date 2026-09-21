@@ -6,8 +6,39 @@
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <title>Family Channels player</title>
   <style>
-    html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
-    #player { width: 100%; height: 100%; }
+    html, body { margin: 0; padding: 0; background: #000; width: 100%; height: 100%; overflow: hidden; }
+    #stage {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    /* Keep the iframe at 16:9. Extra height lets YouTube paint a "YouTube"
+       button and unrelated videos under the player. */
+    #player-box {
+      position: relative;
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      background: #000;
+      overflow: hidden;
+    }
+    #player-box iframe,
+    #player {
+      position: absolute;
+      inset: 0;
+      width: 100% !important;
+      height: 100% !important;
+      border: 0;
+    }
+    #end-lock {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      background: #000;
+    }
+    #end-lock[hidden] { display: none; }
     #dbg {
       display: none; /* passer SHOW_DEBUG_UI à true dans le script pour réafficher */
       position: fixed; left: 0; right: 0; bottom: 0; max-height: 28%;
@@ -18,7 +49,12 @@
   </style>
 </head>
 <body>
-  <div id="player"></div>
+  <div id="stage">
+    <div id="player-box">
+      <div id="player"></div>
+      <div id="end-lock" hidden></div>
+    </div>
+  </div>
   <pre id="dbg"></pre>
   <script>
     var SHOW_DEBUG_UI = false;
@@ -38,19 +74,37 @@
   </script>
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
+    var videoId = "{{ video_id }}";
     var player;
+    function lockEnded() {
+      var lock = document.getElementById("end-lock");
+      if (lock) lock.hidden = false;
+      try { if (player && player.stopVideo) player.stopVideo(); } catch (err) {}
+      if (window.Android && Android.onEnded) Android.onEnded();
+    }
+    function enforceSameVideo() {
+      if (!player || !player.getVideoData) return;
+      try {
+        var data = player.getVideoData();
+        if (data && data.video_id && data.video_id !== videoId) {
+          dbg("blocked other video=" + data.video_id);
+          lockEnded();
+        }
+      } catch (err) {}
+    }
     function onYouTubeIframeAPIReady() {
       dbg("YouTube IFrame API ready");
       player = new YT.Player("player", {
         width: "100%",
         height: "100%",
-        videoId: "{{ video_id }}",
+        videoId: videoId,
         playerVars: {
           autoplay: 1,
           playsinline: 1,
           rel: 0,
           modestbranding: 1,
           fs: 1,
+          iv_load_policy: 3,
           origin: location.origin
         },
         events: {
@@ -62,9 +116,17 @@
           onStateChange: function (e) {
             dbg("YT state=" + e.data);
             if (window.Android && Android.onState) Android.onState(String(e.data));
+            enforceSameVideo();
+            if (e.data === 0) lockEnded();
           },
           onError: function (e) {
             dbg("YT onError code=" + e.data);
+            if (e.data === 101 || e.data === 150 || e.data === 153) {
+              document.body.innerHTML =
+                '<p style="color:#eef3f7;font:16px/1.4 sans-serif;padding:24px;text-align:center">' +
+                "Cette vidéo ne peut pas être lue ici : le créateur a bloqué la lecture hors YouTube." +
+                "</p>";
+            }
             if (window.Android && Android.onError) Android.onError(String(e.data));
           }
         }

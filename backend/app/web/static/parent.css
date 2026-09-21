@@ -549,6 +549,80 @@ a.button.secondary:hover {
   margin-inline-start: auto;
 }
 
+.child-acc-panel {
+  padding: 0.55rem 0.7rem;
+}
+
+.child-acc {
+  margin: 0;
+}
+
+.child-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.7rem 0.7rem;
+  border-radius: 14px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.child-summary::-webkit-details-marker { display: none; }
+.child-summary::marker { content: ""; }
+
+.child-summary:hover {
+  background: rgba(11, 110, 114, 0.06);
+}
+
+.child-summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.child-summary h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.child-summary-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-inline-start: auto;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.acc-chevron {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.2s var(--ease);
+  margin-inline-start: 0.15rem;
+  flex-shrink: 0;
+}
+
+.child-acc[open] .acc-chevron {
+  transform: rotate(-135deg);
+  margin-block-start: 0.2rem;
+}
+
+.child-acc-body {
+  padding: 0.15rem 0.7rem 1rem;
+  border-top: 1px solid var(--line);
+  margin: 0 0.15rem;
+}
+
+.child-acc-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0.85rem 0 0.35rem;
+}
+
 .dash-intro {
   display: flex;
   flex-wrap: wrap;
@@ -579,7 +653,10 @@ a.button.secondary:hover {
   .top { padding: 0.85rem 1rem; }
   .wrap { padding: 1.5rem 1rem 3rem; }
   .panel { padding: 1.15rem 1.15rem; }
+  .child-acc-panel { padding: 0.4rem 0.45rem; }
+  .child-summary-meta { width: 100%; justify-content: flex-end; }
   .row input { min-width: 100%; flex: 1 1 100%; }
   button, .button { width: 100%; }
   button.danger { width: auto; }
+  .child-acc-toolbar button { width: auto; }
 }

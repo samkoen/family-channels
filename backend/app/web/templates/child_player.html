@@ -15,24 +15,80 @@
       · {{ t.min_left.format(n=quota.minutes_remaining) }}
     </p>
     <div class="player" dir="ltr" id="player-wrap">
-      <iframe
-        id="yt-frame"
-        src="https://www.youtube.com/embed/{{ video_id }}?rel=0&modestbranding=1&playsinline=1&fs=1"
-        title="video"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowfullscreen
-        referrerpolicy="strict-origin-when-cross-origin"
-      ></iframe>
+      <div id="yt-frame"></div>
+      <div id="end-lock" class="end-lock" hidden></div>
+      <p id="embed-error" class="embed-error" hidden>
+        <strong>{{ t.embed_disabled }}</strong>
+        <span>{{ t.embed_disabled_hint }}</span>
+      </p>
     </div>
   </section>
 </main>
+<script src="https://www.youtube.com/iframe_api"></script>
 <script>
 (function () {
+  var videoId = {{ video_id|tojson }};
   var label = document.getElementById("quota-live");
   var leftTpl = {{ t.min_left|tojson }};
   var usedTpl = {{ t.min_used|tojson }};
   var homeUrl = "/watch/home";
   var lastTick = Date.now();
+  var player;
+
+  function lockEnded() {
+    var lock = document.getElementById("end-lock");
+    if (lock) lock.hidden = false;
+    try { if (player && player.stopVideo) player.stopVideo(); } catch (e) {}
+  }
+
+  function enforceSameVideo() {
+    if (!player || !player.getVideoData) return;
+    try {
+      var data = player.getVideoData();
+      if (data && data.video_id && data.video_id !== videoId) {
+        lockEnded();
+      }
+    } catch (e) {}
+  }
+
+  function showEmbedBlocked() {
+    if (player && player.destroy) {
+      try { player.destroy(); } catch (e) {}
+    }
+    var frame = document.getElementById("yt-frame");
+    if (frame) frame.remove();
+    var err = document.getElementById("embed-error");
+    if (err) err.hidden = false;
+  }
+
+  window.onYouTubeIframeAPIReady = function () {
+    player = new YT.Player("yt-frame", {
+      width: "100%",
+      height: "100%",
+      videoId: videoId,
+      playerVars: {
+        autoplay: 1,
+        playsinline: 1,
+        rel: 0,
+        modestbranding: 1,
+        fs: 1,
+        iv_load_policy: 3,
+        origin: location.origin
+      },
+      events: {
+        onStateChange: function (e) {
+          enforceSameVideo();
+          if (e.data === 0) lockEnded();
+        },
+        onError: function (e) {
+          var code = e && e.data;
+          if (code === 101 || code === 150 || code === 153) {
+            showEmbedBlocked();
+          }
+        }
+      }
+    });
+  };
 
   function render(used, remaining, limit) {
     if (!label) return;
@@ -44,8 +100,6 @@
   }
 
   function stopPlayback() {
-    var frame = document.getElementById("yt-frame");
-    if (frame) frame.remove();
     window.location.href = homeUrl;
   }
 

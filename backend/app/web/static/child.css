@@ -482,6 +482,40 @@ html[dir="rtl"] .cards .chevron::before {
   border: 0;
 }
 
+.player .end-lock {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: #0e1218;
+}
+
+.player .end-lock[hidden] { display: none; }
+
+.embed-error {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 1.4rem 1.2rem;
+  display: grid;
+  place-content: center;
+  gap: 0.45rem;
+  text-align: center;
+  color: #eef3f7;
+  background: #0e1218;
+}
+
+.embed-error[hidden] { display: none; }
+
+.embed-error strong {
+  font-size: 1.05rem;
+}
+
+.embed-error span {
+  color: rgba(238, 243, 247, 0.72);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
 .live-dot {
   width: 0.55rem;
   height: 0.55rem;
