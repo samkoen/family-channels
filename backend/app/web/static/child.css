@@ -491,6 +491,61 @@ html[dir="rtl"] .cards .chevron::before {
 
 .player .end-lock[hidden] { display: none; }
 
+#fc-yt-logo-block,
+#fc-more-btn {
+  position: absolute;
+  bottom: 0;
+  z-index: 8;
+  height: 48px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+#fc-yt-logo-block { left: 0; width: 54px; }
+#fc-more-btn { left: 54px; width: 48px; cursor: pointer; }
+#fc-more-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  overflow: auto;
+  background: rgba(8, 10, 14, 0.94);
+  color: #eef3f7;
+  padding: 10px 10px 56px;
+}
+#fc-more-panel[hidden] { display: none; }
+#fc-more-panel .fc-more-close {
+  float: right;
+  border: 0;
+  background: transparent;
+  color: #eef3f7;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+#fc-more-panel .fc-more-title {
+  margin: 0 2.2rem 0.8rem 0;
+  font-weight: 650;
+}
+#fc-more-panel .fc-more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+#fc-more-panel .fc-more-item img {
+  width: 96px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
 .embed-error {
   position: absolute;
   inset: 0;

@@ -24,6 +24,7 @@
     </div>
   </section>
 </main>
+<script src="/static/player_guard.js"></script>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
 (function () {
@@ -44,23 +45,6 @@
 
   function revertVideo() {
     try { if (player && player.loadVideoById) player.loadVideoById(videoId); } catch (e) {}
-  }
-
-  function youtubeLeaveId(url) {
-    try {
-      var raw = String(url || "");
-      if (!raw || (!/youtube\.com|youtu\.be|youtube-nocookie\.com|vnd\.youtube|intent:/i.test(raw))) {
-        return "";
-      }
-      if (/\/embed\//i.test(raw) && !/\/watch/i.test(raw)) return "";
-      var m = raw.match(/[?&]v=([\w-]{6,20})/) ||
-        raw.match(/youtu\.be\/([\w-]{6,20})/) ||
-        raw.match(/\/(?:shorts|live)\/([\w-]{6,20})/) ||
-        raw.match(/^vnd\.youtube:([\w-]{6,20})/i);
-      return m ? m[1] : "";
-    } catch (e) {
-      return "";
-    }
   }
 
   function requestRelated(id) {
@@ -90,22 +74,14 @@
       });
   }
 
-  function trapYouTubeExit() {
-    if (window.navigation && navigation.addEventListener) {
-      navigation.addEventListener("navigate", function (e) {
-        var id = youtubeLeaveId(e.destination && e.destination.url);
-        if (!id) return;
-        e.preventDefault();
-        if (id !== videoId) requestRelated(id);
-      });
-    }
-    window.open = function (url) {
-      var id = youtubeLeaveId(url);
-      if (id && id !== videoId) requestRelated(id);
-      return null;
-    };
-  }
-  trapYouTubeExit();
+  FamilyPlayerGuard.install({
+    box: document.getElementById("player-wrap"),
+    getVideoId: function () { return videoId; },
+    getPlayer: function () { return player; },
+    onRelated: requestRelated,
+    videosUrl: "/watch/channels/" + encodeURIComponent(channelId) + "/videos.json",
+    moreLabel: {{ t.more_videos|tojson }}
+  });
 
   function enforceSameChannel() {
     if (!player || !player.getVideoData) return;
