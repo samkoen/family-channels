@@ -170,3 +170,75 @@ def test_expired_cache_is_ignored():
     assert videos[0]["video_id"] == "vid1"
     assert yt.list_calls == 1
     db.close()
+
+
+class PagedYouTube(TrackingYouTube):
+    def list_classic_page(
+        self,
+        youtube_channel_id: str,
+        max_results: int = 25,
+        page_token: str | None = None,
+    ):
+        self.list_calls += 1
+        page1 = [
+            {
+                "video_id": f"a{i:02d}",
+                "title": f"Vid {i}",
+                "thumbnail_url": "https://example.com/v.jpg",
+                "duration": "PT5M",
+            }
+            for i in range(1, 26)
+        ]
+        page2 = [
+            {
+                "video_id": f"b{i:02d}",
+                "title": f"Vid {i}",
+                "thumbnail_url": "https://example.com/v.jpg",
+                "duration": "PT5M",
+            }
+            for i in range(26, 51)
+        ]
+        if page_token == "p2":
+            return page2, None, True
+        return page1, "p2", False
+
+    def list_classic_videos(self, youtube_channel_id: str, max_results: int = 25):
+        videos, _token, _done = self.list_classic_page(
+            youtube_channel_id,
+            max_results=max_results,
+        )
+        return videos[:max_results]
+
+
+def test_pagination_reads_db_before_youtube():
+    db = SessionLocal()
+    family = FamilyService(FamilyRepository(db)).create_family("test-family-page", "1212")
+    child = ChildRepository(db).create(family.id, "Pager", 60, "#121")
+    yt = PagedYouTube()
+    service = _service(db, yt)
+    channel = service.add_for_child(child.id, "@Demo")
+
+    first = service.list_video_page(child.id, channel.id, offset=0)
+    assert len(first["videos"]) == 25
+    assert first["has_more"] is True
+    assert yt.list_calls == 1
+
+    first_again = service.list_video_page(child.id, channel.id, offset=0)
+    assert [v["video_id"] for v in first_again["videos"]] == [
+        v["video_id"] for v in first["videos"]
+    ]
+    assert yt.list_calls == 1
+
+    second = service.list_video_page(child.id, channel.id, offset=25)
+    assert len(second["videos"]) == 25
+    assert second["videos"][0]["video_id"] == "b26"
+    assert second["has_more"] is False
+    assert yt.list_calls == 2
+
+    second_again = service.list_video_page(child.id, channel.id, offset=25)
+    assert second_again["videos"][0]["video_id"] == "b26"
+    assert yt.list_calls == 2
+
+    cached = service.list_videos(child.id, channel.id)
+    assert len(cached) == 50
+    db.close()

@@ -11,6 +11,8 @@ import kotlinx.coroutines.launch
 data class VideosUiState(
     val videos: List<VideoItem> = emptyList(),
     val loading: Boolean = true,
+    val loadingMore: Boolean = false,
+    val hasMore: Boolean = false,
     val error: String? = null,
 )
 
@@ -31,9 +33,13 @@ class VideosViewModel(
             // One retry helps when Render is waking or the first YouTube scan is slow.
             var lastError: Throwable? = null
             repeat(2) { attempt ->
-                val result = runCatching { loadVideos(channelId) }
-                result.onSuccess { list ->
-                    _state.value = VideosUiState(videos = list, loading = false)
+                val result = runCatching { loadVideos(channelId, 0) }
+                result.onSuccess { page ->
+                    _state.value = VideosUiState(
+                        videos = page.videos,
+                        loading = false,
+                        hasMore = page.hasMore,
+                    )
                     return@launch
                 }.onFailure { error ->
                     lastError = error
@@ -46,6 +52,24 @@ class VideosViewModel(
                 loading = false,
                 error = lastError?.message ?: "load_failed",
             )
+        }
+    }
+
+    fun loadMore() {
+        val current = _state.value
+        if (current.loading || current.loadingMore || !current.hasMore) return
+        viewModelScope.launch {
+            _state.value = current.copy(loadingMore = true)
+            val result = runCatching { loadVideos(channelId, current.videos.size) }
+            result.onSuccess { page ->
+                _state.value = current.copy(
+                    videos = current.videos + page.videos,
+                    loadingMore = false,
+                    hasMore = page.hasMore,
+                )
+            }.onFailure {
+                _state.value = current.copy(loadingMore = false)
+            }
         }
     }
 }

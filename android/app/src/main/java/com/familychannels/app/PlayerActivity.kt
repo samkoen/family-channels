@@ -56,6 +56,7 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private var logView: TextView? = null
     private var videoId: String = ""
+    private var channelId: String = ""
     private var loadAttempt = 0
     private var ytReady = false
     private var loadStarted = false
@@ -71,6 +72,7 @@ class PlayerActivity : ComponentActivity() {
         WebView.setWebContentsDebuggingEnabled(true)
 
         videoId = intent.getStringExtra(EXTRA_VIDEO_ID).orEmpty()
+        channelId = intent.getStringExtra(EXTRA_CHANNEL_ID).orEmpty()
         if (!VIDEO_ID_RE.matches(videoId)) {
             finish()
             return
@@ -176,6 +178,7 @@ class PlayerActivity : ComponentActivity() {
                 log("pageDone", url ?: "")
                 hideWebDebugPanel()
                 lockPlayerLayout()
+                hookRelatedClicks()
                 if (isRealUrl(url)) {
                     probePage()
                     scheduleAttemptTimeout()
@@ -452,6 +455,7 @@ class PlayerActivity : ComponentActivity() {
                 ytReady = true
                 handler.removeCallbacksAndMessages(null)
                 lockPlayerLayout()
+                hookRelatedClicks()
                 log("ytReady", "OK")
             }
         }
@@ -471,11 +475,71 @@ class PlayerActivity : ComponentActivity() {
 
         @JavascriptInterface
         fun onEnded() {
-            runOnUiThread {
-                log("ytEnded", "close player")
-                finish()
+            runOnUiThread { log("ytEnded", "keep player for related list") }
+        }
+
+        @JavascriptInterface
+        fun requestCanPlay(nextId: String) {
+            if (!VIDEO_ID_RE.matches(nextId)) {
+                notifyCanPlay(nextId, false)
+                return
+            }
+            if (channelId.isBlank()) {
+                notifyCanPlay(nextId, true)
+                return
+            }
+            lifecycleScope.launch {
+                val repo = watchRepo()
+                val allowed = runCatching { repo.canPlayVideo(channelId, nextId) }
+                    .getOrDefault(true)
+                if (allowed) {
+                    videoId = nextId
+                }
+                notifyCanPlay(nextId, allowed)
             }
         }
+    }
+
+    private fun notifyCanPlay(id: String, allowed: Boolean) {
+        val safeId = id.replace("\\", "\\\\").replace("'", "\\'")
+        val js = "if (window.onCanPlayResult) onCanPlayResult('$safeId', ${if (allowed) "true" else "false"});"
+        runOnUiThread {
+            log("canPlay", "$id allowed=$allowed")
+            webView.evaluateJavascript(js, null)
+        }
+    }
+
+    private fun hookRelatedClicks() {
+        webView.evaluateJavascript(
+            """
+            (function(){
+              window.lockEnded = function(){
+                var lock = document.getElementById('end-lock');
+                if (lock) lock.hidden = true;
+              };
+              window.onCanPlayResult = function(id, allowed){
+                if (allowed) {
+                  videoId = id;
+                  var lock = document.getElementById('end-lock');
+                  if (lock) lock.hidden = true;
+                } else {
+                  try { if (player && player.loadVideoById) player.loadVideoById(videoId); } catch (e) {}
+                }
+              };
+              window.enforceSameVideo = window.enforceSameChannel = function(){
+                if (!player || !player.getVideoData) return;
+                try {
+                  var data = player.getVideoData();
+                  var next = data && data.video_id;
+                  if (!next || next === videoId) return;
+                  if (window.Android && Android.requestCanPlay) Android.requestCanPlay(next);
+                  else videoId = next;
+                } catch (e) {}
+              };
+            })();
+            """.trimIndent(),
+            null,
+        )
     }
 
     private fun startQuotaHeartbeat() {
@@ -546,11 +610,14 @@ class PlayerActivity : ComponentActivity() {
         private const val SHOW_DEBUG_UI = false
         private const val LOG_TAG = "FamilyPlayer"
         private const val EXTRA_VIDEO_ID = "video_id"
+        private const val EXTRA_CHANNEL_ID = "channel_id"
         private const val SERVER_HOST = "family-channels.onrender.com"
         private const val SERVER_BASE = "https://$SERVER_HOST"
         private val VIDEO_ID_RE = Regex("^[\\w-]{6,20}$")
 
-        fun intent(context: Context, videoId: String): Intent =
-            Intent(context, PlayerActivity::class.java).putExtra(EXTRA_VIDEO_ID, videoId)
+        fun intent(context: Context, videoId: String, channelId: String = ""): Intent =
+            Intent(context, PlayerActivity::class.java)
+                .putExtra(EXTRA_VIDEO_ID, videoId)
+                .putExtra(EXTRA_CHANNEL_ID, channelId)
     }
 }

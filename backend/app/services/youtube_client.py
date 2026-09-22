@@ -23,12 +23,40 @@ class YouTubeClient:
         return self._channel_by_handle(handle)
 
     def list_classic_videos(self, youtube_channel_id: str, max_results: int = 25) -> list[dict]:
+        videos, _token, _done = self.list_classic_page(
+            youtube_channel_id,
+            max_results=max_results,
+        )
+        return videos[:max_results]
+
+    def list_classic_page(
+        self,
+        youtube_channel_id: str,
+        max_results: int = 25,
+        page_token: str | None = None,
+    ) -> tuple[list[dict], str | None, bool]:
+        """Next batch of classic videos plus the playlist token to continue."""
         uploads = self._uploads_playlist_id(youtube_channel_id)
         if not uploads:
-            return []
-        video_ids = self._playlist_video_ids(uploads, max_results=max_results * 2)
-        details = self._video_details(video_ids)
-        return filter_classic_videos(details)[:max_results]
+            return [], None, True
+        collected: list[dict] = []
+        token = page_token
+        complete = False
+        while len(collected) < max_results:
+            rows, token = self._playlist_items_page(
+                uploads,
+                page_size=50,
+                page_token=token,
+            )
+            if not rows:
+                complete = True
+                break
+            details = self._video_details([video_id for video_id, _title in rows])
+            collected.extend(filter_classic_videos(details))
+            if not token:
+                complete = True
+                break
+        return collected, token, complete
 
     def search_classic_videos(
         self,

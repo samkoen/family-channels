@@ -50,7 +50,7 @@ class PlayerNavPolicyTest {
                 server,
             ),
         )
-        assertFalse(
+        assertTrue(
             PlayerNavPolicy.shouldAllowMainFrame(
                 "https://$server/embed/otherVideo99",
                 videoId,
@@ -67,20 +67,20 @@ class PlayerNavPolicyTest {
     }
 
     @Test
-    fun blocksBrowseAndForeignEmbedsButKeepsPlayerAssets() {
+    fun blocksBrowseButAllowsRelatedEmbedsAndPlayerAssets() {
         assertTrue(
             PlayerNavPolicy.shouldBlockResource(
                 "https://www.youtube.com/watch?v=$videoId",
                 videoId,
             ),
         )
-        assertTrue(
+        assertFalse(
             PlayerNavPolicy.shouldBlockResource(
                 "https://www.youtube.com/embed/otherVideo99",
                 videoId,
             ),
         )
-        assertTrue(
+        assertFalse(
             PlayerNavPolicy.shouldBlockResource(
                 "https://www.youtube-nocookie.com/embed/otherVideo99",
                 videoId,

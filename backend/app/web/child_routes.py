@@ -191,6 +191,7 @@ def child_videos_json(
     request: Request,
     q: str = "",
     refresh: int = 0,
+    offset: int = 0,
     channels: ChannelService = Depends(channel_service),
     quotas: QuotaService = Depends(quota_service),
     children: ChildRepository = Depends(child_repo),
@@ -209,10 +210,12 @@ def child_videos_json(
     if refresh:
         channels.invalidate_channel_cache(channel_id)
     try:
-        if query:
-            videos = channels.search_videos(session["child_id"], channel_id, query)
-        else:
-            videos = channels.list_videos(session["child_id"], channel_id)
+        page = channels.list_video_page(
+            session["child_id"],
+            channel_id,
+            offset=offset,
+            query=query,
+        )
     except PermissionError:
         return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
     except Exception as exc:
@@ -222,13 +225,15 @@ def child_videos_json(
     return JSONResponse(
         {
             "ok": True,
+            "has_more": page["has_more"],
+            "offset": page["offset"],
             "videos": [
                 {
                     "video_id": v.get("video_id"),
                     "title": v.get("title"),
                     "thumbnail_url": v.get("thumbnail_url"),
                 }
-                for v in videos
+                for v in page["videos"]
             ],
         }
     )
@@ -341,6 +346,27 @@ async def child_heartbeat_json(
             "daily_limit_minutes": quota.daily_limit_minutes,
         }
     )
+
+
+@router.get("/watch/can-play.json")
+def child_can_play_json(
+    request: Request,
+    channel_id: str,
+    video_id: str,
+    channels: ChannelService = Depends(channel_service),
+    children: ChildRepository = Depends(child_repo),
+):
+    required = _require_child(request, children)
+    if isinstance(required, RedirectResponse):
+        return JSONResponse({"ok": False, "allowed": False}, status_code=401)
+    session, _child = required
+    try:
+        allowed = channels.can_play_video(session["child_id"], channel_id, video_id)
+    except PermissionError:
+        return JSONResponse({"ok": False, "allowed": False}, status_code=403)
+    except Exception:
+        allowed = False
+    return JSONResponse({"ok": True, "allowed": allowed})
 
 
 @router.post("/watch/leave")

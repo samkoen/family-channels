@@ -6,12 +6,14 @@ from app.domain.channel_filters import (
     title_matches_filters,
 )
 from app.domain.video_cache_key import build_video_cache_key
+from app.domain.video_cache_payload import dump_video_cache_payload
 from app.models import ChannelRow
 from app.repositories.channel_repo import ChannelRepository
 from app.repositories.child_repo import ChildRepository
 from app.repositories.video_cache_repo import VideoCacheRepository
 from app.services.youtube_client import YouTubeClient
 
+PAGE_SIZE = 25
 # Max videos returned to the child UI for a filtered channel.
 _FILTERED_MATCH_LIMIT = 200
 # How many uploads to inspect when applying title filters (whole-channel scan).
@@ -55,7 +57,30 @@ class ChannelService:
     def list_videos(self, child_id: str, channel_row_id: str) -> list[dict]:
         channel = self._allowed_channel(child_id, channel_row_id)
         patterns = self.channels.filter_patterns(channel.id)
-        return self._get_or_fetch_videos(channel, patterns, query="")
+        return self._ensure_catalog(channel, patterns, query="", needed=PAGE_SIZE)["videos"]
+
+    def list_video_page(
+        self,
+        child_id: str,
+        channel_row_id: str,
+        offset: int = 0,
+        limit: int = PAGE_SIZE,
+        query: str = "",
+    ) -> dict:
+        channel = self._allowed_channel(child_id, channel_row_id)
+        patterns = self.channels.filter_patterns(channel.id)
+        offset = max(0, int(offset))
+        limit = min(max(1, int(limit)), PAGE_SIZE)
+        entry = self._ensure_catalog(
+            channel,
+            patterns,
+            query=query.strip(),
+            needed=offset + limit,
+        )
+        videos = entry["videos"]
+        page = videos[offset : offset + limit]
+        has_more = (offset + limit) < len(videos) or not entry["complete"]
+        return {"videos": page, "has_more": has_more, "offset": offset}
 
     def search_videos(
         self,
@@ -65,7 +90,9 @@ class ChannelService:
     ) -> list[dict]:
         channel = self._allowed_channel(child_id, channel_row_id)
         patterns = self.channels.filter_patterns(channel.id)
-        return self._get_or_fetch_videos(channel, patterns, query=query.strip())
+        return self._ensure_catalog(channel, patterns, query=query.strip(), needed=PAGE_SIZE)[
+            "videos"
+        ]
 
     def add_filter(self, channel_row_id: str, pattern: str):
         row = self.channels.add_filter(channel_row_id, pattern)
@@ -82,24 +109,74 @@ class ChannelService:
         if self.cache:
             self.cache.delete_by_channel(channel_id)
 
-    def _get_or_fetch_videos(
+    def _ensure_catalog(
         self,
         channel: ChannelRow,
         patterns: list[str],
         query: str,
-    ) -> list[dict]:
+        needed: int,
+    ) -> dict:
         kind = "search" if query else "list"
         key = build_video_cache_key(channel.id, kind, patterns, query)
+        entry = {"videos": [], "next_page_token": None, "complete": False}
         if self.cache:
             cached = self.cache.get_fresh(key)
             if cached is not None:
-                return cached
-        videos = self._fetch_videos(channel.youtube_channel_id, patterns, query)
+                entry = cached
+                if len(entry["videos"]) >= needed or entry["complete"]:
+                    return entry
+
+        clean = [normalize_filter(p) for p in patterns if normalize_filter(p)]
+        if query or clean:
+            videos = self._fetch_videos(channel.youtube_channel_id, patterns, query)
+            entry = dump_video_cache_payload(videos, None, True)
+            self._save_catalog(key, channel.id, entry)
+            return entry
+
+        while len(entry["videos"]) < needed and not entry["complete"]:
+            token = entry.get("next_page_token")
+            fetch_size = PAGE_SIZE if token else max(needed, len(entry["videos"]) + PAGE_SIZE)
+            batch, next_token, done = self._list_classic_page(
+                channel.youtube_channel_id,
+                max_results=fetch_size,
+                page_token=token,
+            )
+            merged = merge_unique_videos(entry["videos"], batch)
+            no_new = not batch or merged == entry["videos"]
+            entry = dump_video_cache_payload(
+                merged,
+                next_token,
+                True if no_new else bool(done or not next_token),
+            )
+            self._save_catalog(key, channel.id, entry)
+            if no_new:
+                break
+        return entry
+
+    def _save_catalog(self, key: str, channel_id: str, entry: dict) -> None:
         # Never cache empty lists: transient YouTube/API failures would hide
         # real videos for the whole TTL (e.g. Hebrew filter "כראמל").
-        if self.cache and videos:
-            self.cache.put(key, channel.id, videos, self.cache_ttl_seconds)
-        return videos
+        if self.cache and entry.get("videos"):
+            self.cache.put(key, channel_id, entry, self.cache_ttl_seconds)
+
+    def _list_classic_page(
+        self,
+        youtube_channel_id: str,
+        max_results: int,
+        page_token: str | None,
+    ) -> tuple[list[dict], str | None, bool]:
+        page_fn = getattr(self.youtube, "list_classic_page", None)
+        if callable(page_fn):
+            return page_fn(
+                youtube_channel_id,
+                max_results=max_results,
+                page_token=page_token,
+            )
+        videos = self.youtube.list_classic_videos(
+            youtube_channel_id,
+            max_results=max_results,
+        )
+        return videos, None, True
 
     def _fetch_videos(
         self,

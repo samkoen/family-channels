@@ -9,6 +9,15 @@ class FakeYouTube:
             "thumbnail_url": "https://example.com/t.jpg",
         }
 
+    def list_classic_page(
+        self,
+        youtube_channel_id: str,
+        max_results: int = 25,
+        page_token: str | None = None,
+    ):
+        videos = self.list_classic_videos(youtube_channel_id, max_results=max_results)
+        return videos, None, True
+
     def list_classic_videos(self, youtube_channel_id: str, max_results: int = 25):
         return [
             {

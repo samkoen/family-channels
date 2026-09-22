@@ -20,6 +20,12 @@ data class VideoItem(
     val thumbnailUrl: String,
 )
 
+data class VideoPage(
+    val videos: List<VideoItem>,
+    val hasMore: Boolean,
+    val offset: Int = 0,
+)
+
 data class WatchQuota(
     val minutesRemaining: Int,
     val minutesUsed: Int,

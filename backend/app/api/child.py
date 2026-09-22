@@ -11,11 +11,13 @@ from app.api.schemas import (
     SessionRequest,
     SessionResponse,
     VideoOut,
+    VideoPageOut,
+    CanPlayOut,
 )
 from app.domain.child_pin import check_child_pin
 from app.repositories.child_repo import ChildRepository
 from app.security import make_child_token
-from app.services.channel_service import ChannelService
+from app.services.channel_service import PAGE_SIZE, ChannelService
 from app.services.family_service import FamilyService
 from app.services.quota_service import QuotaService
 
@@ -80,23 +82,50 @@ def list_channels(
     ]
 
 
-@router.get("/videos", response_model=list[VideoOut])
+@router.get("/videos", response_model=VideoPageOut)
 def list_videos(
     channel_id: str,
     child: dict = Depends(require_child),
     channels: ChannelService = Depends(channel_service),
     q: str = "",
+    offset: int = 0,
 ):
     try:
-        if q.strip():
-            videos = channels.search_videos(child["child_id"], channel_id, q)
-        else:
-            videos = channels.list_videos(child["child_id"], channel_id)
+        page = channels.list_video_page(
+            child["child_id"],
+            channel_id,
+            offset=offset,
+            limit=PAGE_SIZE,
+            query=q,
+        )
     except PermissionError:
         raise HTTPException(status_code=403, detail="channel_not_allowed")
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
-    return [VideoOut(**{k: v[k] for k in ("video_id", "title", "thumbnail_url")}) for v in videos]
+    return VideoPageOut(
+        videos=[
+            VideoOut(**{k: v[k] for k in ("video_id", "title", "thumbnail_url")})
+            for v in page["videos"]
+        ],
+        has_more=page["has_more"],
+        offset=page["offset"],
+    )
+
+
+@router.get("/can-play", response_model=CanPlayOut)
+def can_play(
+    channel_id: str,
+    video_id: str,
+    child: dict = Depends(require_child),
+    channels: ChannelService = Depends(channel_service),
+):
+    try:
+        allowed = channels.can_play_video(child["child_id"], channel_id, video_id)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="channel_not_allowed")
+    except Exception:
+        allowed = False
+    return CanPlayOut(allowed=allowed)
 
 
 @router.get("/quota", response_model=QuotaOut)

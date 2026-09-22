@@ -31,6 +31,7 @@
     {% endif %}
     <ul id="videos-list" class="cards" hidden></ul>
     <p id="videos-empty" class="muted" hidden></p>
+    <button type="button" id="videos-more" class="ghost more-videos" hidden>{{ t.more_videos }}</button>
   </section>
 </main>
 <script>
@@ -41,21 +42,27 @@
   var playBase = "/watch/play/" + channelId + "/";
   var msgEmpty = {{ t.no_videos|tojson }};
   var msgEmptySearch = {{ t.no_videos_found|tojson }};
+  var msgMore = {{ t.more_videos|tojson }};
 
   var elLoading = document.getElementById("videos-loading");
   var elError = document.getElementById("videos-error");
   var elList = document.getElementById("videos-list");
   var elEmpty = document.getElementById("videos-empty");
+  var elMore = document.getElementById("videos-more");
   var form = document.getElementById("search-form");
   var input = document.getElementById("search-q");
   var btn = document.getElementById("search-btn");
+  var nextOffset = 0;
+  var currentQ = initialQ || "";
 
   function showLoading() {
     elLoading.hidden = false;
     elError.hidden = true;
     elList.hidden = true;
     elEmpty.hidden = true;
+    if (elMore) elMore.hidden = true;
     elList.innerHTML = "";
+    nextOffset = 0;
     if (btn) btn.disabled = true;
   }
 
@@ -64,44 +71,69 @@
     if (btn) btn.disabled = false;
   }
 
-  function renderVideos(videos, q) {
+  function videoItemHtml(v) {
+    var thumb = v.thumbnail_url
+      ? '<img class="thumb-video" src="' +
+        v.thumbnail_url.replace(/"/g, "") +
+        '" alt="" />'
+      : "";
+    var title = String(v.title || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    return (
+      '<li><a href="' +
+      playBase +
+      encodeURIComponent(v.video_id) +
+      '">' +
+      thumb +
+      "<span>" +
+      title +
+      "</span></a></li>"
+    );
+  }
+
+  function setMoreVisible(hasMore) {
+    if (!elMore) return;
+    elMore.hidden = !hasMore;
+    elMore.disabled = false;
+    elMore.textContent = msgMore;
+  }
+
+  function renderVideos(videos, q, append, hasMore) {
     hideLoading();
-    if (!videos.length) {
+    if (!append && !videos.length) {
       elEmpty.hidden = false;
       elEmpty.textContent = q ? msgEmptySearch : msgEmpty;
+      setMoreVisible(false);
       return;
     }
+    if (!videos.length) {
+      setMoreVisible(false);
+      return;
+    }
+    elEmpty.hidden = true;
     elList.hidden = false;
     var html = "";
     for (var i = 0; i < videos.length; i++) {
-      var v = videos[i];
-      var thumb = v.thumbnail_url
-        ? '<img class="thumb-video" src="' +
-          v.thumbnail_url.replace(/"/g, "") +
-          '" alt="" />'
-        : "";
-      var title = String(v.title || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-      html +=
-        '<li><a href="' +
-        playBase +
-        encodeURIComponent(v.video_id) +
-        '">' +
-        thumb +
-        "<span>" +
-        title +
-        "</span></a></li>";
+      html += videoItemHtml(videos[i]);
     }
-    elList.innerHTML = html;
+    if (append) elList.insertAdjacentHTML("beforeend", html);
+    else elList.innerHTML = html;
+    setMoreVisible(!!hasMore);
   }
 
-  async function loadVideos(q, forceRefresh) {
-    showLoading();
+  async function loadVideos(q, forceRefresh, offset) {
+    var append = (offset || 0) > 0;
+    currentQ = q || "";
+    if (!append) showLoading();
+    else if (elMore) {
+      elMore.disabled = true;
+    }
     var params = new URLSearchParams();
     if (q) params.set("q", q);
     if (forceRefresh) params.set("refresh", "1");
+    if (offset) params.set("offset", String(offset));
     var url = "/watch/channels/" + encodeURIComponent(channelId) + "/videos.json";
     if ([...params].length) url += "?" + params.toString();
     try {
@@ -112,13 +144,17 @@
       var data = await res.json();
       if (!res.ok || !data.ok) {
         hideLoading();
-        elError.hidden = false;
+        if (!append) elError.hidden = false;
+        if (elMore) elMore.disabled = false;
         return;
       }
-      renderVideos(data.videos || [], q);
+      var batch = data.videos || [];
+      nextOffset = (offset || 0) + batch.length;
+      renderVideos(batch, q, append, data.has_more);
     } catch (e) {
       hideLoading();
-      elError.hidden = false;
+      if (!append) elError.hidden = false;
+      if (elMore) elMore.disabled = false;
     }
   }
 
@@ -128,10 +164,16 @@
     var next = "/watch/channels/" + encodeURIComponent(channelId);
     if (q) next += "?q=" + encodeURIComponent(q);
     history.replaceState(null, "", next);
-    loadVideos(q, false);
+    loadVideos(q, false, 0);
   });
 
-  loadVideos(initialQ, refresh === 1);
+  if (elMore) {
+    elMore.addEventListener("click", function () {
+      loadVideos(currentQ, false, nextOffset);
+    });
+  }
+
+  loadVideos(initialQ, refresh === 1, 0);
 })();
 </script>
 {% endblock %}

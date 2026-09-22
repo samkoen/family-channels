@@ -28,26 +28,52 @@
 <script>
 (function () {
   var videoId = {{ video_id|tojson }};
+  var channelId = {{ channel_id|tojson }};
   var label = document.getElementById("quota-live");
   var leftTpl = {{ t.min_left|tojson }};
   var usedTpl = {{ t.min_used|tojson }};
   var homeUrl = "/watch/home";
   var lastTick = Date.now();
   var player;
+  var pendingId = "";
 
-  function lockEnded() {
+  function hideEndLock() {
     var lock = document.getElementById("end-lock");
-    if (lock) lock.hidden = false;
-    try { if (player && player.stopVideo) player.stopVideo(); } catch (e) {}
+    if (lock) lock.hidden = true;
   }
 
-  function enforceSameVideo() {
+  function revertVideo() {
+    try { if (player && player.loadVideoById) player.loadVideoById(videoId); } catch (e) {}
+  }
+
+  function enforceSameChannel() {
     if (!player || !player.getVideoData) return;
     try {
       var data = player.getVideoData();
-      if (data && data.video_id && data.video_id !== videoId) {
-        lockEnded();
-      }
+      var next = data && data.video_id;
+      if (!next || next === videoId) return;
+      pendingId = next;
+      fetch(
+        "/watch/can-play.json?channel_id=" +
+          encodeURIComponent(channelId) +
+          "&video_id=" +
+          encodeURIComponent(next),
+        { credentials: "same-origin", headers: { Accept: "application/json" } }
+      )
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (next !== pendingId) return;
+          if (data && data.ok && data.allowed) {
+            videoId = next;
+            hideEndLock();
+          } else {
+            revertVideo();
+          }
+        })
+        .catch(function () {
+          videoId = next;
+          hideEndLock();
+        });
     } catch (e) {}
   }
 
@@ -77,8 +103,7 @@
       },
       events: {
         onStateChange: function (e) {
-          enforceSameVideo();
-          if (e.data === 0) lockEnded();
+          enforceSameChannel();
         },
         onError: function (e) {
           var code = e && e.data;

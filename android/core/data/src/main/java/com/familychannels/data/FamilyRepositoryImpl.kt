@@ -8,6 +8,7 @@ import com.familychannels.domain.error.QuotaExceededException
 import com.familychannels.domain.model.Channel
 import com.familychannels.domain.model.ChildProfile
 import com.familychannels.domain.model.VideoItem
+import com.familychannels.domain.model.VideoPage
 import com.familychannels.domain.model.WatchQuota
 import com.familychannels.domain.repo.FamilyRepository
 import retrofit2.HttpException
@@ -50,11 +51,16 @@ class FamilyRepositoryImpl(
         }
     }
 
-    override suspend fun listVideos(channelId: String): List<VideoItem> {
+    override suspend fun listVideos(channelId: String, offset: Int): VideoPage {
         return mapApiErrors {
-            api.videos(auth(), channelId).map {
-                VideoItem(it.video_id, it.title, it.thumbnail_url)
-            }
+            val page = api.videos(auth(), channelId, offset)
+            VideoPage(
+                videos = page.videos.map {
+                    VideoItem(it.video_id, it.title, it.thumbnail_url)
+                },
+                hasMore = page.has_more,
+                offset = page.offset,
+            )
         }
     }
 
@@ -67,6 +73,12 @@ class FamilyRepositoryImpl(
                 q.daily_limit_minutes,
                 q.can_watch,
             )
+        }
+    }
+
+    override suspend fun canPlayVideo(channelId: String, videoId: String): Boolean {
+        return mapApiErrors {
+            api.canPlay(auth(), channelId, videoId).allowed
         }
     }
 

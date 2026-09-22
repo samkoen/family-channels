@@ -46,15 +46,18 @@ object PlayerNavPolicy {
         if (host == "youtu.be" || host.endsWith(".youtu.be")) return true
         if (!isYouTubeHost(host)) return false
         if (isYouTubeBrowsePath(path)) return true
-        val embedId = embedVideoId(path)
-        return embedId != null && embedId != videoId
+        return false
     }
+
+    private val videoIdRegex = Regex("^[\\w-]{6,20}$")
 
     private fun isAppPlayerPath(uri: URI, videoId: String): Boolean {
         val path = uri.path ?: return false
-        if (path == "/embed/$videoId") return true
+        val embedId = embedVideoId(path)
+        if (embedId != null) return videoIdRegex.matches(embedId)
         if (path == "/static/player.html") {
-            return queryParam(uri.query, "v") == videoId
+            val v = queryParam(uri.query, "v") ?: return false
+            return videoIdRegex.matches(v)
         }
         return false
     }

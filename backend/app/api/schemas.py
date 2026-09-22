@@ -41,6 +41,12 @@ class VideoOut(BaseModel):
     thumbnail_url: str
 
 
+class VideoPageOut(BaseModel):
+    videos: list[VideoOut]
+    has_more: bool
+    offset: int = 0
+
+
 class QuotaOut(BaseModel):
     minutes_remaining: int
     minutes_used: int
@@ -50,3 +56,7 @@ class QuotaOut(BaseModel):
 
 class HeartbeatRequest(BaseModel):
     minutes: int = 1
+
+
+class CanPlayOut(BaseModel):
+    allowed: bool

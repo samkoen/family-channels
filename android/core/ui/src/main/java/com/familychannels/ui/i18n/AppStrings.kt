@@ -20,6 +20,7 @@ data class Strings(
     val loadFailed: String,
     val childPin: String,
     val invalidChildPin: String,
+    val moreVideos: String,
 )
 
 object AppStrings {
@@ -72,6 +73,7 @@ object AppStrings {
         loadFailed = "Chargement impossible. Réessaie.",
         childPin = "PIN du profil",
         invalidChildPin = "PIN incorrect.",
+        moreVideos = "Plus de vidéos",
     )
 
     private val en = Strings(
@@ -94,6 +96,7 @@ object AppStrings {
         loadFailed = "Could not load. Try again.",
         childPin = "Profile PIN",
         invalidChildPin = "Incorrect PIN.",
+        moreVideos = "More videos",
     )
 
     private val he = Strings(
@@ -116,5 +119,6 @@ object AppStrings {
         loadFailed = "לא ניתן לטעון. נסו שוב.",
         childPin = "PIN לפרופיל",
         invalidChildPin = "PIN שגוי.",
+        moreVideos = "עוד סרטונים",
     )
 }

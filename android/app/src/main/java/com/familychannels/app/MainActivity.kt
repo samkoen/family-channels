@@ -207,7 +207,7 @@ private fun FamilyNav(
                         quotaVm.refreshNow()
                         if (quotaVm.quota.value?.canWatch != false) {
                             context.startActivity(
-                                PlayerActivity.intent(context, video.videoId),
+                                PlayerActivity.intent(context, video.videoId, channelId),
                             )
                         }
                     }

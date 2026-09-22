@@ -76,19 +76,35 @@
   <script>
     var videoId = "{{ video_id }}";
     var player;
-    function lockEnded() {
+    var pendingId = "";
+    function hideEndLock() {
       var lock = document.getElementById("end-lock");
-      if (lock) lock.hidden = false;
-      try { if (player && player.stopVideo) player.stopVideo(); } catch (err) {}
-      if (window.Android && Android.onEnded) Android.onEnded();
+      if (lock) lock.hidden = true;
     }
-    function enforceSameVideo() {
+    function revertVideo() {
+      try { if (player && player.loadVideoById) player.loadVideoById(videoId); } catch (err) {}
+    }
+    window.onCanPlayResult = function (id, allowed) {
+      if (id && id === pendingId && allowed) {
+        videoId = id;
+        hideEndLock();
+        dbg("allowed related=" + id);
+      } else if (id && id === pendingId) {
+        dbg("denied related=" + id);
+        revertVideo();
+      }
+    };
+    function enforceSameChannel() {
       if (!player || !player.getVideoData) return;
       try {
         var data = player.getVideoData();
-        if (data && data.video_id && data.video_id !== videoId) {
-          dbg("blocked other video=" + data.video_id);
-          lockEnded();
+        var next = data && data.video_id;
+        if (!next || next === videoId) return;
+        pendingId = next;
+        if (window.Android && Android.requestCanPlay) {
+          Android.requestCanPlay(next);
+        } else {
+          videoId = next;
         }
       } catch (err) {}
     }
@@ -116,8 +132,7 @@
           onStateChange: function (e) {
             dbg("YT state=" + e.data);
             if (window.Android && Android.onState) Android.onState(String(e.data));
-            enforceSameVideo();
-            if (e.data === 0) lockEnded();
+            enforceSameChannel();
           },
           onError: function (e) {
             dbg("YT onError code=" + e.data);

@@ -68,7 +68,9 @@ private class FakeQuotaRepo(
     override suspend fun join(familyCode: String): List<ChildProfile> = emptyList()
     override suspend fun createSession(familyCode: String, childId: String, pin: String) = "token"
     override suspend fun listChannels(): List<Channel> = emptyList()
-    override suspend fun listVideos(channelId: String): List<VideoItem> = emptyList()
+    override suspend fun listVideos(channelId: String, offset: Int) =
+        com.familychannels.domain.model.VideoPage(emptyList(), hasMore = false)
+    override suspend fun canPlayVideo(channelId: String, videoId: String) = false
     override suspend fun getQuota(): WatchQuota = quota
 
     override suspend fun heartbeat(minutes: Int): WatchQuota {

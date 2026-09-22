@@ -28,6 +28,11 @@ data class VideoDto(
     val title: String,
     @Json(name = "thumbnail_url") val thumbnail_url: String = "",
 )
+data class VideoPageDto(
+    val videos: List<VideoDto> = emptyList(),
+    val has_more: Boolean = false,
+    val offset: Int = 0,
+)
 data class QuotaDto(
     val minutes_remaining: Int,
     val minutes_used: Int,
@@ -35,6 +40,7 @@ data class QuotaDto(
     val can_watch: Boolean,
 )
 data class HeartbeatBody(val minutes: Int = 1)
+data class CanPlayDto(val allowed: Boolean = false)
 
 interface ChildApi {
     @POST("api/child/join")
@@ -50,7 +56,8 @@ interface ChildApi {
     suspend fun videos(
         @Header("Authorization") auth: String,
         @Query("channel_id") channelId: String,
-    ): List<VideoDto>
+        @Query("offset") offset: Int = 0,
+    ): VideoPageDto
 
     @GET("api/child/quota")
     suspend fun quota(@Header("Authorization") auth: String): QuotaDto
@@ -60,4 +67,11 @@ interface ChildApi {
         @Header("Authorization") auth: String,
         @Body body: HeartbeatBody,
     ): QuotaDto
+
+    @GET("api/child/can-play")
+    suspend fun canPlay(
+        @Header("Authorization") auth: String,
+        @Query("channel_id") channelId: String,
+        @Query("video_id") videoId: String,
+    ): CanPlayDto
 }
