@@ -491,7 +491,7 @@ class PlayerActivity : ComponentActivity() {
             lifecycleScope.launch {
                 val repo = watchRepo()
                 val allowed = runCatching { repo.canPlayVideo(channelId, nextId) }
-                    .getOrDefault(true)
+                    .getOrDefault(false)
                 if (allowed) {
                     videoId = nextId
                 }
@@ -513,11 +513,13 @@ class PlayerActivity : ComponentActivity() {
         webView.evaluateJavascript(
             """
             (function(){
+              if (typeof pendingId === 'undefined') window.pendingId = '';
               window.lockEnded = function(){
                 var lock = document.getElementById('end-lock');
                 if (lock) lock.hidden = true;
               };
               window.onCanPlayResult = function(id, allowed){
+                if (!id || id !== pendingId) return;
                 if (allowed) {
                   videoId = id;
                   var lock = document.getElementById('end-lock');
@@ -532,8 +534,11 @@ class PlayerActivity : ComponentActivity() {
                   var data = player.getVideoData();
                   var next = data && data.video_id;
                   if (!next || next === videoId) return;
+                  pendingId = next;
                   if (window.Android && Android.requestCanPlay) Android.requestCanPlay(next);
-                  else videoId = next;
+                  else {
+                    try { if (player && player.loadVideoById) player.loadVideoById(videoId); } catch (e) {}
+                  }
                 } catch (e) {}
               };
             })();

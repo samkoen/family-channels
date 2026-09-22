@@ -71,8 +71,8 @@
           }
         })
         .catch(function () {
-          videoId = next;
-          hideEndLock();
+          if (next !== pendingId) return;
+          revertVideo();
         });
     } catch (e) {}
   }
