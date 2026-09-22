@@ -14,6 +14,8 @@ def test_embed_player_is_locked_to_one_video_and_16x9():
     assert "requestCanPlay" in html
     assert "onCanPlayResult" in html
     assert "id === pendingId" in html
+    assert "youtubeLeaveId" in html
+    assert "loadVideoById" in html
     assert "iv_load_policy" in html
     assert "https://www.youtube.com/embed/" not in html
 

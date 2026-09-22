@@ -46,34 +46,74 @@
     try { if (player && player.loadVideoById) player.loadVideoById(videoId); } catch (e) {}
   }
 
+  function youtubeLeaveId(url) {
+    try {
+      var raw = String(url || "");
+      if (!raw || (!/youtube\.com|youtu\.be|youtube-nocookie\.com|vnd\.youtube|intent:/i.test(raw))) {
+        return "";
+      }
+      if (/\/embed\//i.test(raw) && !/\/watch/i.test(raw)) return "";
+      var m = raw.match(/[?&]v=([\w-]{6,20})/) ||
+        raw.match(/youtu\.be\/([\w-]{6,20})/) ||
+        raw.match(/\/(?:shorts|live)\/([\w-]{6,20})/) ||
+        raw.match(/^vnd\.youtube:([\w-]{6,20})/i);
+      return m ? m[1] : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function requestRelated(id) {
+    if (!id || id === videoId) return;
+    pendingId = id;
+    fetch(
+      "/watch/can-play.json?channel_id=" +
+        encodeURIComponent(channelId) +
+        "&video_id=" +
+        encodeURIComponent(id),
+      { credentials: "same-origin", headers: { Accept: "application/json" } }
+    )
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (id !== pendingId) return;
+        if (data && data.ok && data.allowed) {
+          videoId = id;
+          hideEndLock();
+          try { if (player && player.loadVideoById) player.loadVideoById(id); } catch (e) {}
+        } else {
+          revertVideo();
+        }
+      })
+      .catch(function () {
+        if (id !== pendingId) return;
+        revertVideo();
+      });
+  }
+
+  function trapYouTubeExit() {
+    if (window.navigation && navigation.addEventListener) {
+      navigation.addEventListener("navigate", function (e) {
+        var id = youtubeLeaveId(e.destination && e.destination.url);
+        if (!id) return;
+        e.preventDefault();
+        if (id !== videoId) requestRelated(id);
+      });
+    }
+    window.open = function (url) {
+      var id = youtubeLeaveId(url);
+      if (id && id !== videoId) requestRelated(id);
+      return null;
+    };
+  }
+  trapYouTubeExit();
+
   function enforceSameChannel() {
     if (!player || !player.getVideoData) return;
     try {
       var data = player.getVideoData();
       var next = data && data.video_id;
       if (!next || next === videoId) return;
-      pendingId = next;
-      fetch(
-        "/watch/can-play.json?channel_id=" +
-          encodeURIComponent(channelId) +
-          "&video_id=" +
-          encodeURIComponent(next),
-        { credentials: "same-origin", headers: { Accept: "application/json" } }
-      )
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-          if (next !== pendingId) return;
-          if (data && data.ok && data.allowed) {
-            videoId = next;
-            hideEndLock();
-          } else {
-            revertVideo();
-          }
-        })
-        .catch(function () {
-          if (next !== pendingId) return;
-          revertVideo();
-        });
+      requestRelated(next);
     } catch (e) {}
   }
 

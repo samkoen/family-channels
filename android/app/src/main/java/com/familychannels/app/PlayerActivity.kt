@@ -62,6 +62,7 @@ class PlayerActivity : ComponentActivity() {
     private var loadStarted = false
     private var quotaStopped = false
     private var lastFinishedUrl: String? = null
+    private var relatedRequestId: String = ""
     private val handler = Handler(Looper.getMainLooper())
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
 
@@ -229,21 +230,12 @@ class PlayerActivity : ComponentActivity() {
                 request: WebResourceRequest?,
             ): Boolean {
                 val url = request?.url?.toString().orEmpty()
-                val allow = if (request?.isForMainFrame != false) {
-                    PlayerNavPolicy.shouldAllowMainFrame(url, videoId, SERVER_HOST)
-                } else {
-                    !PlayerNavPolicy.shouldBlockResource(url, videoId)
-                }
-                if (!allow) log("blockNav", url)
-                return !allow
+                return handlePlayerNavigation(url, request?.isForMainFrame != false)
             }
 
             @Suppress("DEPRECATION")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                val target = url.orEmpty()
-                val allow = PlayerNavPolicy.shouldAllowMainFrame(target, videoId, SERVER_HOST)
-                if (!allow) log("blockNav", target)
-                return !allow
+                return handlePlayerNavigation(url.orEmpty(), isMainFrame = true)
             }
 
             override fun shouldInterceptRequest(
@@ -251,6 +243,15 @@ class PlayerActivity : ComponentActivity() {
                 request: WebResourceRequest?,
             ): WebResourceResponse? {
                 val url = request?.url?.toString().orEmpty()
+                val leaveId = PlayerNavPolicy.leaveAppVideoId(url)
+                if (leaveId != null) {
+                    val dest = requestHeader(request, "Sec-Fetch-Dest")
+                    if (leaveId != videoId && dest in NAV_FETCH_DEST) {
+                        handler.post { playRelatedInApp(leaveId) }
+                    }
+                    log("blockRes", url)
+                    return blockedResponse()
+                }
                 if (PlayerNavPolicy.shouldBlockResource(url, videoId)) {
                     log("blockRes", url)
                     return blockedResponse()
@@ -287,6 +288,72 @@ class PlayerActivity : ComponentActivity() {
         webView.onPause()
         webView.pauseTimers()
         super.onPause()
+    }
+
+    /** Never open YouTube. A related /watch click plays in this WebView instead. */
+    private fun handlePlayerNavigation(url: String, isMainFrame: Boolean): Boolean {
+        val leaveId = PlayerNavPolicy.leaveAppVideoId(url)
+        if (leaveId != null) {
+            if (leaveId != videoId) {
+                playRelatedInApp(leaveId)
+            } else {
+                log("blockNav", url)
+            }
+            return true
+        }
+        val allow = if (isMainFrame) {
+            PlayerNavPolicy.shouldAllowMainFrame(url, videoId, SERVER_HOST)
+        } else {
+            !PlayerNavPolicy.shouldBlockResource(url, videoId)
+        }
+        if (!allow) log("blockNav", url)
+        return !allow
+    }
+
+    private fun playRelatedInApp(nextId: String) {
+        if (!VIDEO_ID_RE.matches(nextId) || nextId == videoId) return
+        relatedRequestId = nextId
+        log("related", nextId)
+        lifecycleScope.launch {
+            val allowed = if (channelId.isBlank()) {
+                true
+            } else {
+                runCatching { watchRepo().canPlayVideo(channelId, nextId) }.getOrDefault(false)
+            }
+            if (nextId != relatedRequestId) return@launch
+            if (!allowed) {
+                log("canPlay", "$nextId allowed=false")
+                return@launch
+            }
+            videoId = nextId
+            val safe = nextId.replace("\\", "\\\\").replace("'", "\\'")
+            runOnUiThread {
+                log("canPlay", "$nextId allowed=true in-app")
+                webView.evaluateJavascript(
+                    """
+                    (function(){
+                      pendingId = '$safe';
+                      videoId = '$safe';
+                      var lock = document.getElementById('end-lock');
+                      if (lock) lock.hidden = true;
+                      try {
+                        if (player && player.loadVideoById) {
+                          player.loadVideoById('$safe');
+                          return 'ok';
+                        }
+                      } catch (e) {}
+                      return 'missing';
+                    })();
+                    """.trimIndent(),
+                ) { result ->
+                    if (result?.contains("missing") == true) {
+                        loadAttempt = 0
+                        ytReady = false
+                        loadEmbedPage()
+                    }
+                }
+            }
+        }
     }
 
     private fun isRealUrl(url: String?): Boolean {
@@ -524,6 +591,7 @@ class PlayerActivity : ComponentActivity() {
                   videoId = id;
                   var lock = document.getElementById('end-lock');
                   if (lock) lock.hidden = true;
+                  try { if (player && player.loadVideoById) player.loadVideoById(id); } catch (e) {}
                 } else {
                   try { if (player && player.loadVideoById) player.loadVideoById(videoId); } catch (e) {}
                 }
@@ -619,6 +687,15 @@ class PlayerActivity : ComponentActivity() {
         private const val SERVER_HOST = "family-channels.onrender.com"
         private const val SERVER_BASE = "https://$SERVER_HOST"
         private val VIDEO_ID_RE = Regex("^[\\w-]{6,20}$")
+        private val NAV_FETCH_DEST = setOf("document", "iframe", "frame")
+
+        private fun requestHeader(request: WebResourceRequest?, name: String): String {
+            val headers = request?.requestHeaders ?: return ""
+            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }
+                ?.value
+                ?.lowercase()
+                .orEmpty()
+        }
 
         fun intent(context: Context, videoId: String, channelId: String = ""): Intent =
             Intent(context, PlayerActivity::class.java)

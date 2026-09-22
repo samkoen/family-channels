@@ -88,24 +88,63 @@
       if (id && id === pendingId && allowed) {
         videoId = id;
         hideEndLock();
+        try { if (player && player.loadVideoById) player.loadVideoById(id); } catch (err) {}
         dbg("allowed related=" + id);
       } else if (id && id === pendingId) {
         dbg("denied related=" + id);
         revertVideo();
       }
     };
+    function youtubeLeaveId(url) {
+      try {
+        var raw = String(url || "");
+        if (!raw || (!/youtube\.com|youtu\.be|youtube-nocookie\.com|vnd\.youtube|intent:/i.test(raw))) {
+          return "";
+        }
+        if (/\/embed\//i.test(raw) && !/\/watch/i.test(raw)) return "";
+        var m = raw.match(/[?&]v=([\w-]{6,20})/) ||
+          raw.match(/youtu\.be\/([\w-]{6,20})/) ||
+          raw.match(/\/(?:shorts|live)\/([\w-]{6,20})/) ||
+          raw.match(/^vnd\.youtube:([\w-]{6,20})/i);
+        return m ? m[1] : "";
+      } catch (err) {
+        return "";
+      }
+    }
+    function requestRelated(id) {
+      if (!id || id === videoId) return;
+      pendingId = id;
+      if (window.Android && Android.requestCanPlay) {
+        Android.requestCanPlay(id);
+        return;
+      }
+      videoId = id;
+      hideEndLock();
+      try { if (player && player.loadVideoById) player.loadVideoById(id); } catch (err) {}
+    }
+    function trapYouTubeExit() {
+      if (window.navigation && navigation.addEventListener) {
+        navigation.addEventListener("navigate", function (e) {
+          var id = youtubeLeaveId(e.destination && e.destination.url);
+          if (!id) return;
+          e.preventDefault();
+          if (id !== videoId) requestRelated(id);
+        });
+      }
+      window.open = function (url) {
+        var id = youtubeLeaveId(url);
+        if (id && id !== videoId) requestRelated(id);
+        return null;
+      };
+    }
+    trapYouTubeExit();
     function enforceSameChannel() {
       if (!player || !player.getVideoData) return;
       try {
         var data = player.getVideoData();
         var next = data && data.video_id;
         if (!next || next === videoId) return;
-        pendingId = next;
-        if (window.Android && Android.requestCanPlay) {
-          Android.requestCanPlay(next);
-        } else {
-          videoId = next;
-        }
+        requestRelated(next);
       } catch (err) {}
     }
     function onYouTubeIframeAPIReady() {

@@ -50,6 +50,61 @@ object PlayerNavPolicy {
     }
 
     private val videoIdRegex = Regex("^[\\w-]{6,20}$")
+    private val looseVideoId = Regex(
+        """(?:[?&]v=|/embed/|/shorts/|/live/|youtu\.be/)([\w-]{6,20})""",
+    )
+
+    /**
+     * Video id from a YouTube *exit* URL (watch / shorts / youtu.be / intent).
+     * Does not treat /embed/ as leaving — the iframe needs those to play.
+     */
+    fun leaveAppVideoId(url: String): String? {
+        if (url.isBlank()) return null
+        val raw = url.trim()
+        if (raw.startsWith("vnd.youtube:", ignoreCase = true)) {
+            val id = raw.substringAfter(":").substringBefore("?").substringBefore("&")
+                .substringBefore("#")
+            return id.takeIf { videoIdRegex.matches(it) }
+        }
+        val uri = parse(raw)
+        if (uri != null) {
+            val host = uri.host?.lowercase().orEmpty()
+            val path = uri.path.orEmpty()
+            if (host == "youtu.be" || host.endsWith(".youtu.be")) {
+                val id = path.trim('/').substringBefore('/')
+                return id.takeIf { videoIdRegex.matches(it) }
+            }
+            if (isYouTubeHost(host) || raw.startsWith("intent:", ignoreCase = true) ||
+                raw.startsWith("youtube:", ignoreCase = true)
+            ) {
+                val head = path.trimEnd('/').trimStart('/').substringBefore('/')
+                if (head == "watch") {
+                    return queryParam(uri.query, "v")?.takeIf { videoIdRegex.matches(it) }
+                }
+                if (head == "shorts" || head == "live") {
+                    val id = path.trim('/').substringAfter('/').substringBefore('/')
+                    return id.takeIf { videoIdRegex.matches(it) }
+                }
+            }
+        }
+        if (!looksLikeYouTube(raw)) return null
+        if (raw.contains("/embed/", ignoreCase = true) &&
+            !raw.contains("/watch", ignoreCase = true)
+        ) {
+            return null
+        }
+        return looseVideoId.find(raw)?.groupValues?.get(1)?.takeIf { videoIdRegex.matches(it) }
+    }
+
+    private fun looksLikeYouTube(url: String): Boolean {
+        val u = url.lowercase()
+        return u.contains("youtube.com") ||
+            u.contains("youtu.be") ||
+            u.contains("youtube-nocookie.com") ||
+            u.startsWith("intent:") ||
+            u.startsWith("youtube:") ||
+            u.startsWith("vnd.youtube:")
+    }
 
     private fun isAppPlayerPath(uri: URI, videoId: String): Boolean {
         val path = uri.path ?: return false

@@ -1,6 +1,8 @@
 package com.familychannels.domain.player
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -95,6 +97,45 @@ class PlayerNavPolicyTest {
                 "https://www.youtube.com/embed/$videoId",
                 videoId,
             ),
+        )
+    }
+
+    @Test
+    fun extractsLeaveAppVideoIdFromWatchButNotEmbed() {
+        assertEquals(
+            "otherVideo99",
+            PlayerNavPolicy.leaveAppVideoId("https://www.youtube.com/watch?v=otherVideo99"),
+        )
+        assertEquals(
+            "otherVideo99",
+            PlayerNavPolicy.leaveAppVideoId("https://m.youtube.com/watch?v=otherVideo99&list=PLxx"),
+        )
+        assertEquals(
+            "shortVid12",
+            PlayerNavPolicy.leaveAppVideoId("https://www.youtube.com/shorts/shortVid12"),
+        )
+        assertEquals(
+            "otherVideo99",
+            PlayerNavPolicy.leaveAppVideoId("https://youtu.be/otherVideo99"),
+        )
+        assertEquals(
+            "otherVideo99",
+            PlayerNavPolicy.leaveAppVideoId(
+                "intent://www.youtube.com/watch?v=otherVideo99#Intent;" +
+                    "package=com.google.android.youtube;end",
+            ),
+        )
+        assertEquals(
+            "otherVideo99",
+            PlayerNavPolicy.leaveAppVideoId("vnd.youtube:otherVideo99"),
+        )
+        assertNull(
+            PlayerNavPolicy.leaveAppVideoId("https://www.youtube.com/embed/otherVideo99"),
+        )
+        assertNull(PlayerNavPolicy.leaveAppVideoId("https://$server/embed/$videoId"))
+        assertEquals(
+            videoId,
+            PlayerNavPolicy.leaveAppVideoId("https://www.youtube.com/watch?v=$videoId"),
         )
         assertFalse(
             PlayerNavPolicy.shouldBlockResource(
