@@ -16,8 +16,8 @@ def test_embed_player_is_locked_to_one_video_and_16x9():
     assert "id === pendingId" in html
     assert "/static/player_guard.js" in html
     assert "FamilyPlayerGuard.install" in html
+    assert "FamilyPlayerGuard.createPlayer" in html
     assert "loadVideoById" in html
-    assert "iv_load_policy" in html
     assert "https://www.youtube.com/embed/" not in html
 
 
@@ -32,9 +32,13 @@ def test_player_guard_blocks_youtube_exit_and_keeps_related_in_app():
         Path(__file__).resolve().parents[2] / "app/web/static/player_guard.js"
     ).read_text(encoding="utf-8")
     assert "fc-yt-logo-block" in js
+    assert "fc-yt-watermark-block" in js
+    assert "createPlayer" in js
     assert "allow-top-navigation" not in js
     assert "videosUrl" in js
     assert "youtubeLeaveId" in js
+    assert "iv_load_policy" in js
+    assert "Android.requestVideos" in js
 
 
 def test_child_player_reverts_related_when_can_play_fails():

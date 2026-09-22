@@ -24,7 +24,7 @@
     </div>
   </section>
 </main>
-<script src="/static/player_guard.js"></script>
+<script src="/static/player_guard.js?v=3"></script>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
 (function () {
@@ -104,28 +104,14 @@
   }
 
   window.onYouTubeIframeAPIReady = function () {
-    player = new YT.Player("yt-frame", {
-      width: "100%",
-      height: "100%",
-      videoId: videoId,
-      playerVars: {
-        autoplay: 1,
-        playsinline: 1,
-        rel: 0,
-        modestbranding: 1,
-        fs: 1,
-        iv_load_policy: 3,
-        origin: location.origin
+    player = FamilyPlayerGuard.createPlayer("yt-frame", videoId, {
+      onStateChange: function () {
+        enforceSameChannel();
       },
-      events: {
-        onStateChange: function (e) {
-          enforceSameChannel();
-        },
-        onError: function (e) {
-          var code = e && e.data;
-          if (code === 101 || code === 150 || code === 153) {
-            showEmbedBlocked();
-          }
+      onError: function (e) {
+        var code = e && e.data;
+        if (code === 101 || code === 150 || code === 153) {
+          showEmbedBlocked();
         }
       }
     });

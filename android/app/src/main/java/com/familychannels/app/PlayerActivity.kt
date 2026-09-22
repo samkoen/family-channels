@@ -41,6 +41,9 @@ import com.familychannels.data.SessionStore
 import com.familychannels.domain.error.QuotaExceededException
 import com.familychannels.domain.player.PlayerNavPolicy
 import com.familychannels.domain.repo.FamilyRepository
+import com.familychannels.ui.i18n.AppStrings
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -180,6 +183,7 @@ class PlayerActivity : ComponentActivity() {
                 hideWebDebugPanel()
                 lockPlayerLayout()
                 hookRelatedClicks()
+                injectAndroidChrome()
                 if (isRealUrl(url)) {
                     probePage()
                     scheduleAttemptTimeout()
@@ -523,6 +527,7 @@ class PlayerActivity : ComponentActivity() {
                 handler.removeCallbacksAndMessages(null)
                 lockPlayerLayout()
                 hookRelatedClicks()
+                injectAndroidChrome()
                 log("ytReady", "OK")
             }
         }
@@ -546,6 +551,32 @@ class PlayerActivity : ComponentActivity() {
         }
 
         @JavascriptInterface
+        fun requestVideos() {
+            if (channelId.isBlank()) {
+                notifyVideos("""{"ok":true,"videos":[]}""")
+                return
+            }
+            lifecycleScope.launch {
+                val page = runCatching { watchRepo().listVideos(channelId, 0) }.getOrNull()
+                val videos = JSONArray()
+                page?.videos?.forEach { item ->
+                    videos.put(
+                        JSONObject()
+                            .put("video_id", item.videoId)
+                            .put("title", item.title)
+                            .put("thumbnail_url", item.thumbnailUrl),
+                    )
+                }
+                notifyVideos(
+                    JSONObject()
+                        .put("ok", page != null)
+                        .put("videos", videos)
+                        .toString(),
+                )
+            }
+        }
+
+        @JavascriptInterface
         fun requestCanPlay(nextId: String) {
             if (!VIDEO_ID_RE.matches(nextId)) {
                 notifyCanPlay(nextId, false)
@@ -564,6 +595,17 @@ class PlayerActivity : ComponentActivity() {
                 }
                 notifyCanPlay(nextId, allowed)
             }
+        }
+    }
+
+    private fun notifyVideos(json: String) {
+        val quoted = JSONObject.quote(json)
+        runOnUiThread {
+            log("videos", "n=${json.length}")
+            webView.evaluateJavascript(
+                "if (window.onVideosResult) onVideosResult($quoted);",
+                null,
+            )
         }
     }
 
@@ -609,6 +651,118 @@ class PlayerActivity : ComponentActivity() {
                   }
                 } catch (e) {}
               };
+            })();
+            """.trimIndent(),
+            null,
+        )
+    }
+
+    /** Same Chrome guard: cover YouTube logo/title, open more-videos in-app. */
+    private fun injectAndroidChrome() {
+        val moreLabel = AppStrings.of(Locale.getDefault().language).moreVideos
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+        webView.evaluateJavascript(
+            """
+            (function(){
+              var style = document.getElementById('fc-android-chrome');
+              if (!style) {
+                style = document.createElement('style');
+                style.id = 'fc-android-chrome';
+                document.documentElement.appendChild(style);
+              }
+              style.textContent =
+                '#fc-yt-logo-block,#fc-yt-watermark-block,#fc-more-btn{position:absolute;z-index:20;border:0;pointer-events:auto;}' +
+                '#fc-yt-logo-block{left:0;bottom:0;width:72%;height:64px;background:transparent;}' +
+                '#fc-yt-watermark-block{top:0;right:0;width:140px;height:56px;background:transparent;}' +
+                '#fc-more-btn{left:58px;bottom:10px;z-index:21;width:auto;height:auto;padding:6px 10px;' +
+                'border-radius:8px;background:rgba(8,10,14,0.88);color:#eef3f7;font:650 12px/1.2 sans-serif;cursor:pointer;}' +
+                '#fc-more-panel{position:absolute;inset:0;z-index:22;overflow:auto;background:rgba(8,10,14,0.94);' +
+                'color:#eef3f7;padding:10px 10px 56px;}' +
+                '#fc-more-panel[hidden]{display:none;}' +
+                '#fc-more-panel .fc-more-close{float:right;border:0;background:transparent;color:#eef3f7;font-size:22px;}' +
+                '#fc-more-panel .fc-more-title{margin:0 36px 12px 0;font-weight:650;}' +
+                '#fc-more-panel .fc-more-item{display:flex;align-items:center;gap:10px;width:100%;margin:0 0 8px;' +
+                'padding:0;border:0;background:transparent;color:inherit;text-align:left;}' +
+                '#fc-more-panel .fc-more-item img{width:96px;height:54px;object-fit:cover;border-radius:8px;}';
+              var box = document.getElementById('player-box') || document.getElementById('player-wrap') || document.body;
+              function related(id){
+                if (!id || id === videoId) return;
+                pendingId = id;
+                if (window.Android && Android.requestCanPlay) Android.requestCanPlay(id);
+              }
+              if (window.FamilyPlayerGuard && FamilyPlayerGuard.install) {
+                FamilyPlayerGuard.install({
+                  box: box,
+                  getVideoId: function(){ return videoId; },
+                  getPlayer: function(){ return player; },
+                  onRelated: related,
+                  moreLabel: '$moreLabel'
+                });
+              }
+              if (!document.getElementById('fc-yt-logo-block')) {
+                var logo = document.createElement('div');
+                logo.id = 'fc-yt-logo-block';
+                logo.setAttribute('aria-hidden', 'true');
+                box.appendChild(logo);
+              }
+              if (!document.getElementById('fc-yt-watermark-block')) {
+                var mark = document.createElement('div');
+                mark.id = 'fc-yt-watermark-block';
+                mark.setAttribute('aria-hidden', 'true');
+                box.appendChild(mark);
+              }
+              if (!document.getElementById('fc-more-btn') && window.Android && Android.requestVideos) {
+                var btn = document.createElement('button');
+                btn.id = 'fc-more-btn';
+                btn.type = 'button';
+                btn.textContent = '$moreLabel';
+                var panel = document.createElement('div');
+                panel.id = 'fc-more-panel';
+                panel.hidden = true;
+                box.appendChild(btn);
+                box.appendChild(panel);
+                function closePanel(){ panel.hidden = true; panel.innerHTML = ''; }
+                btn.onclick = function(ev){
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  if (!panel.hidden) { closePanel(); return; }
+                  window.onVideosResult = function(raw){
+                    var data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    var videos = data && data.videos ? data.videos : [];
+                    panel.innerHTML = '';
+                    var close = document.createElement('button');
+                    close.type = 'button';
+                    close.className = 'fc-more-close';
+                    close.textContent = '×';
+                    close.onclick = closePanel;
+                    panel.appendChild(close);
+                    var heading = document.createElement('p');
+                    heading.className = 'fc-more-title';
+                    heading.textContent = '$moreLabel';
+                    panel.appendChild(heading);
+                    videos.forEach(function(v){
+                      if (!v || !v.video_id) return;
+                      var item = document.createElement('button');
+                      item.type = 'button';
+                      item.className = 'fc-more-item';
+                      if (v.thumbnail_url) {
+                        var img = document.createElement('img');
+                        img.src = v.thumbnail_url;
+                        img.alt = '';
+                        item.appendChild(img);
+                      }
+                      var t = document.createElement('span');
+                      t.textContent = v.title || v.video_id;
+                      item.appendChild(t);
+                      item.onclick = function(){ closePanel(); related(v.video_id); };
+                      panel.appendChild(item);
+                    });
+                    panel.hidden = false;
+                  };
+                  Android.requestVideos();
+                };
+              }
             })();
             """.trimIndent(),
             null,

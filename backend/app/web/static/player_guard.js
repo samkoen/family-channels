@@ -1,31 +1,9 @@
-/* Keep the child on Family Channels: block the YouTube logo, and play
-   "more videos" picks in our player instead of youtube.com. */
+/* Keep the child on Family Channels. YouTube's iframe chrome (logo, title,
+   more-videos) opens youtube.com — we create a sandboxed iframe, cover those
+   controls, and play picks in our player. */
 (function (global) {
   var SANDBOX = "allow-scripts allow-same-origin allow-presentation allow-forms";
-
-  function lockIframe(iframe) {
-    if (!iframe || iframe.nodeName !== "IFRAME") return;
-    if (iframe.getAttribute("sandbox") === SANDBOX) return;
-    iframe.setAttribute("sandbox", SANDBOX);
-    iframe.setAttribute(
-      "allow",
-      "autoplay; encrypted-media; picture-in-picture; fullscreen",
-    );
-  }
-
-  function watchIframes() {
-    document.querySelectorAll("iframe").forEach(lockIframe);
-    new MutationObserver(function (records) {
-      records.forEach(function (record) {
-        record.addedNodes.forEach(function (node) {
-          if (node.nodeName === "IFRAME") lockIframe(node);
-          if (node.querySelectorAll) {
-            node.querySelectorAll("iframe").forEach(lockIframe);
-          }
-        });
-      });
-    }).observe(document.documentElement, { childList: true, subtree: true });
-  }
+  var ALLOW = "autoplay; encrypted-media; picture-in-picture; fullscreen";
 
   function isYouTubeUrl(url) {
     var raw = String(url || "");
@@ -61,6 +39,38 @@
     }
   }
 
+  function embedSrc(videoId) {
+    return (
+      "https://www.youtube.com/embed/" +
+      encodeURIComponent(videoId) +
+      "?enablejsapi=1&rel=0&modestbranding=1&playsinline=1" +
+      "&iv_load_policy=3&fs=1&autoplay=1&origin=" +
+      encodeURIComponent(location.origin)
+    );
+  }
+
+  function lockIframe(iframe) {
+    if (!iframe || iframe.nodeName !== "IFRAME") return;
+    if (iframe.getAttribute("sandbox") !== SANDBOX) {
+      iframe.setAttribute("sandbox", SANDBOX);
+    }
+    iframe.setAttribute("allow", ALLOW);
+  }
+
+  function watchIframes() {
+    document.querySelectorAll("iframe").forEach(lockIframe);
+    new MutationObserver(function (records) {
+      records.forEach(function (record) {
+        record.addedNodes.forEach(function (node) {
+          if (node.nodeName === "IFRAME") lockIframe(node);
+          if (node.querySelectorAll) {
+            node.querySelectorAll("iframe").forEach(lockIframe);
+          }
+        });
+      });
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  }
+
   function trapExit(onRelated, getVideoId) {
     if (global.navigation && navigation.addEventListener) {
       navigation.addEventListener("navigate", function (event) {
@@ -80,20 +90,30 @@
     };
   }
 
-  function addLogoShield(box) {
-    if (!box || document.getElementById("fc-yt-logo-block")) return;
-    var shield = document.createElement("div");
-    shield.id = "fc-yt-logo-block";
-    shield.setAttribute("aria-hidden", "true");
-    box.appendChild(shield);
+  function addShields(box) {
+    if (!box) return;
+    if (!document.getElementById("fc-yt-logo-block")) {
+      var chrome = document.createElement("div");
+      chrome.id = "fc-yt-logo-block";
+      chrome.setAttribute("aria-hidden", "true");
+      box.appendChild(chrome);
+    }
+    if (!document.getElementById("fc-yt-watermark-block")) {
+      var mark = document.createElement("div");
+      mark.id = "fc-yt-watermark-block";
+      mark.setAttribute("aria-hidden", "true");
+      box.appendChild(mark);
+    }
   }
 
   function addMoreUi(box, opts) {
-    if (!box || !opts.videosUrl || document.getElementById("fc-more-btn")) return;
+    var androidList = global.Android && Android.requestVideos;
+    if (!box || document.getElementById("fc-more-btn")) return;
+    if (!opts.videosUrl && !opts.loadVideos && !androidList) return;
     var button = document.createElement("button");
     button.id = "fc-more-btn";
     button.type = "button";
-    button.setAttribute("aria-label", opts.moreLabel || "More videos");
+    button.textContent = opts.moreLabel || "More videos";
     var panel = document.createElement("div");
     panel.id = "fc-more-panel";
     panel.hidden = true;
@@ -141,11 +161,30 @@
       panel.hidden = false;
     }
 
+    function showFromPayload(data) {
+      var videos = data && data.videos ? data.videos : [];
+      if (!videos.length) return;
+      render(videos);
+    }
+
     button.addEventListener("click", function (event) {
       event.preventDefault();
       event.stopPropagation();
       if (!panel.hidden) {
         closePanel();
+        return;
+      }
+      if (androidList) {
+        global.onVideosResult = function (raw) {
+          try {
+            showFromPayload(typeof raw === "string" ? JSON.parse(raw) : raw);
+          } catch (err) {}
+        };
+        Android.requestVideos();
+        return;
+      }
+      if (opts.loadVideos) {
+        opts.loadVideos(showFromPayload);
         return;
       }
       fetch(opts.videosUrl, {
@@ -155,12 +194,40 @@
         .then(function (res) {
           return res.json();
         })
-        .then(function (data) {
-          if (!data || !data.ok || !data.videos) return;
-          render(data.videos);
-        })
+        .then(showFromPayload)
         .catch(function () {});
     });
+  }
+
+  function watchIframeSrc(onRelated, getVideoId) {
+    setInterval(function () {
+      var iframe = document.querySelector(
+        "#player-box iframe, #player-wrap iframe, iframe",
+      );
+      if (!iframe) return;
+      lockIframe(iframe);
+      var src = iframe.getAttribute("src") || iframe.src || "";
+      if (!isYouTubeUrl(src)) return;
+      if (!/\/watch|youtu\.be\//i.test(src)) return;
+      var id = youtubeLeaveId(src) || getVideoId();
+      iframe.src = embedSrc(id);
+      if (id && id !== getVideoId() && onRelated) onRelated(id);
+    }, 400);
+  }
+
+  function createPlayer(hostId, videoId, events) {
+    var host = document.getElementById(hostId);
+    var iframe = document.createElement("iframe");
+    iframe.id = hostId + "-iframe";
+    iframe.setAttribute("sandbox", SANDBOX);
+    iframe.setAttribute("allow", ALLOW);
+    iframe.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+    iframe.src = embedSrc(videoId);
+    if (host) {
+      host.innerHTML = "";
+      host.appendChild(iframe);
+    }
+    return new YT.Player(iframe, { events: events || {} });
   }
 
   function install(opts) {
@@ -174,9 +241,10 @@
       function () {
         return global.videoId;
       };
-    addLogoShield(box);
+    addShields(box);
     addMoreUi(box, opts);
     trapExit(opts.onRelated, getVideoId);
+    watchIframeSrc(opts.onRelated, getVideoId);
     setInterval(function () {
       var player = opts.getPlayer ? opts.getPlayer() : global.player;
       if (!player || !player.getVideoData) return;
@@ -190,6 +258,7 @@
   watchIframes();
   global.FamilyPlayerGuard = {
     install: install,
+    createPlayer: createPlayer,
     youtubeLeaveId: youtubeLeaveId,
     isYouTubeUrl: isYouTubeUrl,
   };

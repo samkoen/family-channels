@@ -474,7 +474,8 @@ html[dir="rtl"] .cards .chevron::before {
   box-shadow: 0 20px 50px rgba(14, 18, 24, 0.28);
 }
 
-.player iframe {
+.player iframe,
+.player #yt-frame {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -492,21 +493,44 @@ html[dir="rtl"] .cards .chevron::before {
 .player .end-lock[hidden] { display: none; }
 
 #fc-yt-logo-block,
+#fc-yt-watermark-block,
 #fc-more-btn {
   position: absolute;
-  bottom: 0;
-  z-index: 8;
-  height: 48px;
+  z-index: 20;
   border: 0;
-  padding: 0;
+  pointer-events: auto;
+}
+#fc-yt-logo-block {
+  left: 0;
+  bottom: 0;
+  width: 72%;
+  height: 64px;
   background: transparent;
 }
-#fc-yt-logo-block { left: 0; width: 54px; }
-#fc-more-btn { left: 54px; width: 48px; cursor: pointer; }
+#fc-yt-watermark-block {
+  top: 0;
+  right: 0;
+  width: 140px;
+  height: 56px;
+  background: transparent;
+}
+#fc-more-btn {
+  left: 58px;
+  bottom: 10px;
+  z-index: 21;
+  height: auto;
+  width: auto;
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(8, 10, 14, 0.88);
+  color: #eef3f7;
+  font: 650 0.8rem/1.2 var(--font);
+  cursor: pointer;
+}
 #fc-more-panel {
   position: absolute;
   inset: 0;
-  z-index: 9;
+  z-index: 22;
   overflow: auto;
   background: rgba(8, 10, 14, 0.94);
   color: #eef3f7;

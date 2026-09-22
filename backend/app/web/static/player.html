@@ -37,14 +37,18 @@
       background: #000;
     }
     #end-lock[hidden] { display: none; }
-    #fc-yt-logo-block, #fc-more-btn {
-      position: absolute; bottom: 0; z-index: 8; height: 48px;
-      border: 0; padding: 0; background: transparent;
+    #fc-yt-logo-block, #fc-yt-watermark-block, #fc-more-btn {
+      position: absolute; z-index: 20; border: 0; pointer-events: auto;
     }
-    #fc-yt-logo-block { left: 0; width: 54px; }
-    #fc-more-btn { left: 54px; width: 48px; cursor: pointer; }
+    #fc-yt-logo-block { left: 0; bottom: 0; width: 72%; height: 64px; }
+    #fc-yt-watermark-block { top: 0; right: 0; width: 140px; height: 56px; }
+    #fc-more-btn {
+      left: 58px; bottom: 10px; z-index: 21; width: auto; height: auto;
+      padding: 6px 10px; border-radius: 8px; cursor: pointer;
+      background: rgba(8, 10, 14, 0.88); color: #eef3f7; font: 650 12px/1.2 sans-serif;
+    }
     #fc-more-panel {
-      position: absolute; inset: 0; z-index: 9; overflow: auto;
+      position: absolute; inset: 0; z-index: 22; overflow: auto;
       background: rgba(8, 10, 14, 0.94); color: #eef3f7; padding: 10px 10px 56px;
     }
     #fc-more-panel[hidden] { display: none; }
@@ -83,7 +87,7 @@
     dbg("static player origin=" + location.origin);
     dbg("video=" + videoId);
   </script>
-  <script src="/static/player_guard.js"></script>
+  <script src="/static/player_guard.js?v=3"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     var videoId = new URLSearchParams(window.location.search).get("v") || "";
@@ -135,34 +139,20 @@
     }
     function onYouTubeIframeAPIReady() {
       dbg("YouTube IFrame API ready");
-      player = new YT.Player("player", {
-        width: "100%",
-        height: "100%",
-        videoId: videoId,
-        playerVars: {
-          autoplay: 1,
-          playsinline: 1,
-          rel: 0,
-          modestbranding: 1,
-          fs: 1,
-          iv_load_policy: 3,
-          origin: location.origin
+      player = FamilyPlayerGuard.createPlayer("player", videoId, {
+        onReady: function (e) {
+          dbg("YT onReady");
+          try { e.target.playVideo(); } catch (err) { dbg("playVideo err: " + err); }
+          if (window.Android && Android.onReady) Android.onReady();
         },
-        events: {
-          onReady: function (e) {
-            dbg("YT onReady");
-            try { e.target.playVideo(); } catch (err) { dbg("playVideo err: " + err); }
-            if (window.Android && Android.onReady) Android.onReady();
-          },
-          onStateChange: function (e) {
-            dbg("YT state=" + e.data);
-            if (window.Android && Android.onState) Android.onState(String(e.data));
-            enforceSameChannel();
-          },
-          onError: function (e) {
-            dbg("YT onError code=" + e.data);
-            if (window.Android && Android.onError) Android.onError(String(e.data));
-          }
+        onStateChange: function (e) {
+          dbg("YT state=" + e.data);
+          if (window.Android && Android.onState) Android.onState(String(e.data));
+          enforceSameChannel();
+        },
+        onError: function (e) {
+          dbg("YT onError code=" + e.data);
+          if (window.Android && Android.onError) Android.onError(String(e.data));
         }
       });
     }
